@@ -23,7 +23,7 @@ var _building_status_panel: BuildingStatusPanel
 var _cached_player_inventory: InventoryContainer = null
 var _cached_warehouse: Warehouse = null
 var _cached_building_site: BuildingSite = null
-var _cached_population_manager: PopulationManager = null
+var _cached_population_manager: Node = null
 
 
 func _ready() -> void:
@@ -177,12 +177,14 @@ func _cache_nodes() -> void:
 	if _cached_population_manager == null or not is_instance_valid(_cached_population_manager):
 		if not population_manager_path.is_empty():
 			var node := get_node_or_null(population_manager_path)
-			if node is PopulationManager:
+			if _is_valid_population_manager(node):
 				_cached_population_manager = node
 		if _cached_population_manager == null:
 			var managers := get_tree().get_nodes_in_group("population_manager")
-			if managers.size() > 0 and managers[0] is PopulationManager:
-				_cached_population_manager = managers[0]
+			for manager in managers:
+				if _is_valid_population_manager(manager):
+					_cached_population_manager = manager
+					break
 
 
 func _get_player_inventory() -> InventoryContainer:
@@ -200,4 +202,9 @@ func _get_building_site() -> BuildingSite:
 func _get_population_status_text() -> String:
 	if _cached_population_manager == null or not is_instance_valid(_cached_population_manager):
 		return "Populacao: -- / --"
-	return _cached_population_manager.get_status_text()
+	return String(_cached_population_manager.call("get_status_text"))
+
+
+func _is_valid_population_manager(node: Variant) -> bool:
+	var manager := node as Node
+	return manager != null and manager.has_method("get_status_text")

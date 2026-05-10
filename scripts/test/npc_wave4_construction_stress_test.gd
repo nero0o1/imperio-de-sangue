@@ -2,7 +2,7 @@ extends "res://scripts/test/npc_wave4_test.gd"
 
 @export var movement_bounds_min: Vector2 = Vector2(-36.0, -36.0)
 @export var movement_bounds_max: Vector2 = Vector2(36.0, 36.0)
-@export var stress_max_npcs: int = 40
+@export var stress_max_npcs: int = 10
 @export var auto_spawn_npcs_on_ready: int = 0
 @export var move_pick_distance: float = 80.0
 
@@ -178,6 +178,7 @@ func _cancel_move_destination_mode() -> void:
 func _configure_stress_houses() -> void:
 	for npc_house in _get_houses():
 		npc_house.max_spawned_npcs = stress_max_npcs
+		npc_house.population_capacity_bonus = 10
 
 
 func _auto_spawn_npcs() -> void:

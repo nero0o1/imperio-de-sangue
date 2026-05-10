@@ -35,7 +35,7 @@ shape = SubResource("3_interactable_shape")
 [node name="NPCHouse" parent="." instance=ExtResource("2_npc_house")]
 visible = false
 creation_enabled = false
-max_spawned_npcs = 40
+max_spawned_npcs = 10
 spawn_radius = 8.0
 
 [node name="BuildingVisualState" parent="." instance=ExtResource("3_visual_state")]

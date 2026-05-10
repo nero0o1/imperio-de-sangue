@@ -4,7 +4,7 @@ extends Node
 signal population_changed(current_population: int, max_capacity: int)
 
 @export var base_capacity: int = 3
-@export var capacity_per_house: int = 5
+@export var capacity_per_house: int = 10
 @export var starting_population: int = 0
 
 var population_current: int = 0

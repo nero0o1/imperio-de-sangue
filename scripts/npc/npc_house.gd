@@ -11,13 +11,13 @@ signal npc_created(npc: NPCBase)
 @export var spawn_radius: float = 2.0
 @export var creation_enabled: bool = true
 @export var population_manager_path: NodePath
-@export var population_capacity_bonus: int = 5
+@export var population_capacity_bonus: int = 10
 @export var register_capacity_on_ready: bool = false
 
 var spawned_count: int = 0
 var _created_npcs: Array[NPCBase] = []
 var _next_npc_index: int = 1
-var _population_manager: PopulationManager = null
+var _population_manager: Node = null
 var _population_registered := false
 
 
@@ -47,7 +47,7 @@ func can_create_npc() -> bool:
 		return false
 	if _population_manager == null:
 		_population_manager = _resolve_population_manager()
-	return _population_manager == null or _population_manager.can_spawn(1)
+	return _population_manager == null or bool(_population_manager.call("can_spawn", 1))
 
 
 func create_npc(actor: Node = null) -> NPCBase:
@@ -63,7 +63,7 @@ func create_npc(actor: Node = null) -> NPCBase:
 
 	var reserved_population := false
 	if _population_manager != null:
-		reserved_population = _population_manager.try_reserve_population(1)
+		reserved_population = bool(_population_manager.call("try_reserve_population", 1))
 		if not reserved_population:
 			return null
 
@@ -73,7 +73,7 @@ func create_npc(actor: Node = null) -> NPCBase:
 		print("[NPC] Criacao de civil falhou: cena configurada nao instancia NPCBase.")
 		instance.queue_free()
 		if reserved_population:
-			_population_manager.release_population(1)
+			_population_manager.call("release_population", 1)
 		return null
 
 	var spawn_parent := _get_spawn_parent()
@@ -81,7 +81,7 @@ func create_npc(actor: Node = null) -> NPCBase:
 		print("[NPC] Criacao de civil falhou: parent de spawn invalido em %s." % house_name)
 		npc.queue_free()
 		if reserved_population:
-			_population_manager.release_population(1)
+			_population_manager.call("release_population", 1)
 		return null
 
 	npc.name = "Civil%d" % _next_npc_index
@@ -119,7 +119,7 @@ func register_population_capacity() -> bool:
 		print("[Population] Casa %s sem PopulationManager configurado." % house_name)
 		return false
 
-	_population_registered = _population_manager.register_house(self, population_capacity_bonus)
+	_population_registered = bool(_population_manager.call("register_house", self, population_capacity_bonus))
 	return _population_registered
 
 
@@ -149,7 +149,7 @@ func _on_created_npc_tree_exiting(npc: NPCBase) -> void:
 	_created_npcs.erase(npc)
 	spawned_count = _created_npcs.size()
 	if _population_manager != null:
-		_population_manager.release_population(1)
+		_population_manager.call("release_population", 1)
 
 
 func _prune_invalid_npcs() -> void:
@@ -159,14 +159,24 @@ func _prune_invalid_npcs() -> void:
 	spawned_count = _created_npcs.size()
 
 
-func _resolve_population_manager() -> PopulationManager:
+func _resolve_population_manager() -> Node:
 	if String(population_manager_path) != "":
 		var configured := get_node_or_null(population_manager_path)
-		if configured is PopulationManager:
+		if _is_valid_population_manager(configured):
 			return configured
 
 	var managers := get_tree().get_nodes_in_group("population_manager")
-	if not managers.is_empty() and managers[0] is PopulationManager:
-		return managers[0]
+	for manager in managers:
+		if _is_valid_population_manager(manager):
+			return manager
 
 	return null
+
+
+func _is_valid_population_manager(node: Variant) -> bool:
+	var manager := node as Node
+	return manager != null \
+		and manager.has_method("register_house") \
+		and manager.has_method("can_spawn") \
+		and manager.has_method("try_reserve_population") \
+		and manager.has_method("release_population")

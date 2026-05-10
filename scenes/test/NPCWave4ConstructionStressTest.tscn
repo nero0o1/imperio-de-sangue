@@ -59,7 +59,7 @@ move_distance = 12.0
 debug_keyboard_commands_enabled = false
 movement_bounds_min = Vector2(-36, -36)
 movement_bounds_max = Vector2(36, 36)
-stress_max_npcs = 40
+stress_max_npcs = 10
 auto_spawn_npcs_on_ready = 0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -108,7 +108,7 @@ script = ExtResource("6_player_inventory")
 [node name="PopulationManager" type="Node" parent="."]
 script = ExtResource("19_population_manager")
 base_capacity = 3
-capacity_per_house = 5
+capacity_per_house = 10
 starting_population = 0
 
 [node name="BuildPlacementController" type="Node3D" parent="."]

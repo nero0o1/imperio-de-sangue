@@ -48,6 +48,7 @@ func _process(_delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("build_mode"):
+		print("[BuildMode] H pressionado")
 		_open_build_menu()
 		get_viewport().set_input_as_handled()
 		return
@@ -88,6 +89,7 @@ func begin_placement(building_id: StringName) -> void:
 
 	var config := _get_building_config(building_id)
 	if config.is_empty():
+		print("[BuildMode] construção bloqueada: construcao nao configurada")
 		push_warning("[BUILD] Construcao nao configurada: %s." % String(building_id))
 		return
 
@@ -121,6 +123,7 @@ func try_confirm_placement() -> bool:
 
 	_update_current_target()
 	if not _current_is_valid:
+		print("[BuildMode] construção bloqueada: %s" % _current_invalid_reason)
 		print("[BUILD] Nao foi possivel posicionar %s: %s." % [_current_display_name, _current_invalid_reason])
 		return true
 
@@ -128,6 +131,7 @@ func try_confirm_placement() -> bool:
 	var buildable := instance as Node3D
 	if buildable == null:
 		instance.queue_free()
+		print("[BuildMode] construção bloqueada: cena nao instancia Node3D")
 		push_warning("[BUILD] Cena de %s nao instancia Node3D." % _current_display_name)
 		return true
 
@@ -136,6 +140,7 @@ func try_confirm_placement() -> bool:
 	_configure_buildable(buildable)
 	var display_name := _current_display_name
 	_clear_preview()
+	print("[BuildMode] construção criada")
 	print("[BUILD] %s posicionado para construcao." % display_name)
 	return true
 
@@ -154,11 +159,14 @@ func _open_build_menu() -> void:
 		return
 	if _build_menu != null and _build_menu.has_method("open_menu"):
 		_build_menu.call("open_menu")
+		print("[BuildMode] menu de construção aberto")
 	else:
+		print("[BuildMode] menu de construção aberto")
 		begin_civil_house_placement()
 
 
 func _on_build_menu_build_selected(building_id: StringName) -> void:
+	print("[BuildMode] construção selecionada: %s" % _get_building_log_name(building_id))
 	begin_placement(building_id)
 
 
@@ -168,7 +176,7 @@ func _get_building_config(building_id: StringName) -> Dictionary:
 			if buildable_warehouse_scene == null:
 				return {}
 			return {
-				"display_name": "Armazem",
+				"display_name": "Armazém",
 				"scene": buildable_warehouse_scene,
 				"footprint_size": warehouse_footprint_size,
 			}
@@ -363,6 +371,7 @@ func _configure_buildable_house(buildable_house: Node3D) -> void:
 	if npc_house != null:
 		npc_house.max_spawned_npcs = _get_stress_max_npcs()
 		npc_house.spawn_radius = 8.0
+		npc_house.population_capacity_bonus = 10
 		npc_house.population_manager_path = _get_population_manager_path_for(npc_house)
 		var parent := get_parent()
 		if parent != null and parent.has_method("_on_house_creation_requested"):
@@ -392,7 +401,7 @@ func _get_population_manager_path_for(from_node: Node) -> NodePath:
 	if not String(explicit_path).is_empty():
 		return explicit_path
 
-	var manager := _find_first_child_of_type(get_parent(), "PopulationManager") as PopulationManager
+	var manager := _find_first_child_of_type(get_parent(), "PopulationManager")
 	if manager != null:
 		return from_node.get_path_to(manager)
 
@@ -417,7 +426,7 @@ func _node_matches_type(node: Node, class_name_to_find: String) -> bool:
 		return true
 	if class_name_to_find == "NPCHouse" and node is NPCHouse:
 		return true
-	if class_name_to_find == "PopulationManager" and node is PopulationManager:
+	if class_name_to_find == "PopulationManager" and _is_valid_population_manager(node):
 		return true
 	if class_name_to_find == "Warehouse" and node is Warehouse:
 		return true
@@ -442,7 +451,7 @@ func _get_stress_max_npcs() -> int:
 		var value: Variant = parent.get("stress_max_npcs")
 		if value != null:
 			return int(value)
-	return 40
+	return 10
 
 
 func _report_validation_state() -> void:
@@ -452,9 +461,29 @@ func _report_validation_state() -> void:
 
 	_last_reported_reason = reason
 	if _current_is_valid:
+		print("[BuildMode] preview válido")
 		print("[BUILD] Local valido para %s." % _current_display_name)
 	else:
+		print("[BuildMode] preview inválido: %s" % _current_invalid_reason)
 		print("[BUILD] Local invalido: %s." % _current_invalid_reason)
+
+
+func _is_valid_population_manager(node: Variant) -> bool:
+	var manager := node as Node
+	return manager != null \
+		and manager.has_method("register_house") \
+		and manager.has_method("can_spawn") \
+		and manager.has_method("try_reserve_population") \
+		and manager.has_method("release_population")
+
+
+func _get_building_log_name(building_id: StringName) -> String:
+	match building_id:
+		&"civil_house":
+			return "Casa Civil"
+		&"warehouse":
+			return "Armazém"
+	return String(building_id)
 
 
 func _clear_preview() -> void:

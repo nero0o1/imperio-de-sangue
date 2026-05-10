@@ -112,7 +112,7 @@ script = ExtResource("10_warehouse")
 [node name="PopulationManager" type="Node" parent="."]
 script = ExtResource("15_population_manager")
 base_capacity = 3
-capacity_per_house = 5
+capacity_per_house = 10
 starting_population = 3
 
 [node name="WarehouseInteractable" type="StaticBody3D" parent="."]
