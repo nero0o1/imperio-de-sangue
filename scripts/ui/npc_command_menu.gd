@@ -1,6 +1,6 @@
 ## NPCCommandMenu — Wave 4.5.1
 ## Menu completo de ordens semânticas com painel de debug integrado.
-## Ordens com execução real, PARTIAL e UNSUPPORTED estão todas expostas.
+## Ordens incompletas ficam fora dos botoes principais.
 class_name NPCCommandMenu
 extends PanelContainer
 
@@ -38,6 +38,8 @@ var _nearest_warehouse_interactable: Node3D = null
 var _nearest_wi_dist: float = INF
 var _nearest_garrison: Node3D = null
 var _nearest_garrison_dist: float = INF
+var _nearest_repair_target: Node3D = null
+var _nearest_repair_dist: float = INF
 
 
 func _ready() -> void:
@@ -174,34 +176,22 @@ func _build_ui() -> void:
 	_add_section(btn_box, "── MOVIMENTO ──")
 	_add_button(btn_box, "Mover", _on_move_pressed)
 	_add_button(btn_box, "Seguir voce", _on_follow_pressed)
-	_add_button(btn_box, "Parar (STOP)", _on_stop_pressed)
+	_add_button(btn_box, "Parar", _on_stop_pressed)
 	_add_button(btn_box, "Manter posicao", _on_hold_position_pressed)
 	_add_button(btn_box, "Patrulhar", _on_patrol_pressed)
 
 	_add_section(btn_box, "── CONSTRUCAO / ECONOMIA ──")
-	_add_button(btn_box, "Ajudar construcao (ASSIST_BUILD)", _on_assist_build_pressed)
-	_add_button(btn_box, "Coletar recurso (GATHER)", _on_gather_pressed)
-	_add_button(btn_box, "Depositar / Force Drop", _on_force_drop_pressed)
-	_add_button(btn_box, "Reparar [UNSUPPORTED]", _on_repair_pressed)
+	_add_button(btn_box, "Ajudar construcao", _on_assist_build_pressed)
+	_add_button(btn_box, "Coletar recurso", _on_gather_pressed)
+	_add_button(btn_box, "Designar coletor", _on_gather_pressed)
+	_add_button(btn_box, "Depositar no armazem", _on_force_drop_pressed)
+	_add_button(btn_box, "Reparar construcao", _on_repair_pressed)
 
 	_add_section(btn_box, "── POSTURAS / COMBATE ──")
-	_add_button(btn_box, "Attack Move [PARTIAL]", _on_attack_move_pressed)
-	_add_button(btn_box, "Fire at Will [PARTIAL]", _on_fire_at_will_pressed)
-	_add_button(btn_box, "Hold Fire [PARTIAL]", _on_hold_fire_pressed)
-	_add_button(btn_box, "Focus Fire [UNSUPPORTED]", _on_focus_fire_pressed)
 
 	_add_section(btn_box, "── FORMACAO ──")
-	_add_button(btn_box, "Shield Wall [PARTIAL]", _on_shield_wall_pressed)
-	_add_button(btn_box, "Brace Pikes [PARTIAL]", _on_brace_pikes_pressed)
 
 	_add_section(btn_box, "── ESTRUTURA / CERCO ──")
-	_add_button(btn_box, "Garrison [PARTIAL/UNSUP]", _on_garrison_pressed)
-	_add_button(btn_box, "Volley Fire [UNSUPPORTED]", _on_volley_fire_pressed)
-	_add_button(btn_box, "Man Siege Ram [UNSUPPORTED]", _on_man_siege_ram_pressed)
-	_add_button(btn_box, "Scale Walls [UNSUPPORTED]", _on_scale_walls_pressed)
-	_add_button(btn_box, "Sap Foundation [UNSUPPORTED]", _on_sap_foundation_pressed)
-	_add_button(btn_box, "Pour Murder Holes [UNSUPPORTED]", _on_pour_murder_holes_pressed)
-	_add_button(btn_box, "Sally Out [UNSUPPORTED]", _on_sally_out_pressed)
 
 	root.add_child(HSeparator.new())
 
@@ -417,7 +407,13 @@ func _on_repair_pressed() -> void:
 	if not _has_valid_current_npc():
 		return
 	print("[UIOrder] %s clicked REPAIR" % current_npc.npc_name)
-	current_npc.issue_test_order_by_type(NPCEnums.OrderType.REPAIR)
+	var target := _find_nearest_repair_target()
+	if target == null:
+		print("[Order] %s FAILED REPAIR: nenhuma construcao danificada encontrada." % current_npc.npc_name)
+		return
+	print("[Order] %s REPAIR -> target=%s" % [current_npc.npc_name, target.name])
+	var order := NPCOrder.make(NPCEnums.OrderType.REPAIR, Vector3.ZERO, target, current_npc, queue_mode)
+	current_npc.issue_order(order)
 
 
 func _on_attack_move_pressed() -> void:
@@ -479,7 +475,7 @@ func _on_garrison_pressed() -> void:
 	if target != null:
 		order = NPCOrder.make(NPCEnums.OrderType.GARRISON, Vector3.ZERO, target, current_npc, queue_mode)
 	else:
-		# Sem alvo: UNSUPPORTED será retornado pelo executor
+		# Sem alvo valido, o executor registra a falha sem expor codigo interno na UI.
 		order = NPCOrder.make(NPCEnums.OrderType.GARRISON, current_npc.global_position, null, current_npc, queue_mode)
 	current_npc.issue_order(order)
 
@@ -583,7 +579,7 @@ func _search_pickups(node: Node, from: Vector3) -> void:
 
 
 func _is_resource_pickup(node: Node3D) -> bool:
-	return "resource_id" in node and "amount" in node and node.has_method("interact") and int(node.get("amount")) > 0
+	return _has_property(node, "resource_id") and _has_property(node, "amount") and node.has_method("interact") and int(node.get("amount")) > 0
 
 
 func _find_nearest_warehouse_interactable() -> Node3D:
@@ -606,7 +602,14 @@ func _search_warehouse_interactables(node: Node, from: Vector3) -> void:
 
 
 func _is_warehouse_interactable(node: Node3D) -> bool:
-	return "warehouse_path" in node and node.has_method("interact")
+	return _has_property(node, "warehouse_path") and node.has_method("interact")
+
+
+func _has_property(node: Object, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if String(property.get("name", "")) == property_name:
+			return true
+	return false
 
 
 func _find_nearest_garrison_target() -> Node3D:
@@ -628,6 +631,30 @@ func _search_garrison_targets(node: Node, from: Vector3) -> void:
 				_nearest_garrison_dist = d
 	for child in node.get_children():
 		_search_garrison_targets(child, from)
+
+
+func _find_nearest_repair_target() -> Node3D:
+	if not _has_valid_current_npc():
+		return null
+	_nearest_repair_target = null
+	_nearest_repair_dist = INF
+	_search_repair_targets(get_tree().current_scene, current_npc.global_position)
+	return _nearest_repair_target
+
+
+func _search_repair_targets(node: Node, from: Vector3) -> void:
+	if node is Node3D and _is_repair_target(node as Node3D):
+		var n3d := node as Node3D
+		var d := n3d.global_position.distance_to(from)
+		if d < _nearest_repair_dist:
+			_nearest_repair_target = n3d
+			_nearest_repair_dist = d
+	for child in node.get_children():
+		_search_repair_targets(child, from)
+
+
+func _is_repair_target(node: Node3D) -> bool:
+	return node.has_method("is_damaged") and node.has_method("repair") and bool(node.call("is_damaged"))
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────

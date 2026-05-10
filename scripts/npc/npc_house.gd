@@ -10,14 +10,22 @@ signal npc_created(npc: NPCBase)
 @export var max_spawned_npcs: int = 3
 @export var spawn_radius: float = 2.0
 @export var creation_enabled: bool = true
+@export var population_manager_path: NodePath
+@export var population_capacity_bonus: int = 5
+@export var register_capacity_on_ready: bool = false
 
 var spawned_count: int = 0
 var _created_npcs: Array[NPCBase] = []
 var _next_npc_index: int = 1
+var _population_manager: PopulationManager = null
+var _population_registered := false
 
 
 func _ready() -> void:
 	add_to_group("npc_house")
+	_population_manager = _resolve_population_manager()
+	if creation_enabled and register_capacity_on_ready:
+		register_population_capacity()
 	print("[NPC] Casa de criacao pronta: %s limite=%d." % [house_name, max_spawned_npcs])
 
 
@@ -35,7 +43,11 @@ func interact(actor: Node = null) -> void:
 
 func can_create_npc() -> bool:
 	_prune_invalid_npcs()
-	return creation_enabled and npc_scene != null and spawned_count < max_spawned_npcs
+	if not creation_enabled or npc_scene == null or spawned_count >= max_spawned_npcs:
+		return false
+	if _population_manager == null:
+		_population_manager = _resolve_population_manager()
+	return _population_manager == null or _population_manager.can_spawn(1)
 
 
 func create_npc(actor: Node = null) -> NPCBase:
@@ -49,17 +61,27 @@ func create_npc(actor: Node = null) -> NPCBase:
 		])
 		return null
 
+	var reserved_population := false
+	if _population_manager != null:
+		reserved_population = _population_manager.try_reserve_population(1)
+		if not reserved_population:
+			return null
+
 	var instance := npc_scene.instantiate()
 	var npc := instance as NPCBase
 	if npc == null:
 		print("[NPC] Criacao de civil falhou: cena configurada nao instancia NPCBase.")
 		instance.queue_free()
+		if reserved_population:
+			_population_manager.release_population(1)
 		return null
 
 	var spawn_parent := _get_spawn_parent()
 	if spawn_parent == null or not is_instance_valid(spawn_parent):
 		print("[NPC] Criacao de civil falhou: parent de spawn invalido em %s." % house_name)
 		npc.queue_free()
+		if reserved_population:
+			_population_manager.release_population(1)
 		return null
 
 	npc.name = "Civil%d" % _next_npc_index
@@ -88,6 +110,19 @@ func get_creation_status() -> String:
 	return "%d/%d civis" % [spawned_count, max_spawned_npcs]
 
 
+func register_population_capacity() -> bool:
+	if _population_registered:
+		return false
+	if _population_manager == null:
+		_population_manager = _resolve_population_manager()
+	if _population_manager == null:
+		print("[Population] Casa %s sem PopulationManager configurado." % house_name)
+		return false
+
+	_population_registered = _population_manager.register_house(self, population_capacity_bonus)
+	return _population_registered
+
+
 func _get_spawn_parent() -> Node:
 	var configured_parent := get_node_or_null(spawn_parent_path)
 	if configured_parent != null:
@@ -113,6 +148,8 @@ func _get_spawn_position(index: int) -> Vector3:
 func _on_created_npc_tree_exiting(npc: NPCBase) -> void:
 	_created_npcs.erase(npc)
 	spawned_count = _created_npcs.size()
+	if _population_manager != null:
+		_population_manager.release_population(1)
 
 
 func _prune_invalid_npcs() -> void:
@@ -120,3 +157,16 @@ func _prune_invalid_npcs() -> void:
 		if not is_instance_valid(_created_npcs[index]):
 			_created_npcs.remove_at(index)
 	spawned_count = _created_npcs.size()
+
+
+func _resolve_population_manager() -> PopulationManager:
+	if String(population_manager_path) != "":
+		var configured := get_node_or_null(population_manager_path)
+		if configured is PopulationManager:
+			return configured
+
+	var managers := get_tree().get_nodes_in_group("population_manager")
+	if not managers.is_empty() and managers[0] is PopulationManager:
+		return managers[0]
+
+	return null

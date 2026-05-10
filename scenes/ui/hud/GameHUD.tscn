@@ -70,6 +70,10 @@ text = "Fechar"
 layout_mode = 2
 placeholder_text = "Buscar item por nome..."
 
+[node name="PopulationLabel" type="Label" parent="MarginContainer/Frame/Root"]
+layout_mode = 2
+text = "Populacao: -- / --"
+
 [node name="Panels" type="HBoxContainer" parent="MarginContainer/Frame/Root"]
 layout_mode = 2
 mouse_filter = 2

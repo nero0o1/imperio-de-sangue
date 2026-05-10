@@ -4,6 +4,7 @@ extends Control
 @export var player_inventory_path: NodePath
 @export var warehouse_path: NodePath
 @export var building_site_path: NodePath
+@export var population_manager_path: NodePath
 @export var update_interval: float = 0.25
 
 ## Estado inicial: false = fechada ao iniciar (comportamento de jogo padrao).
@@ -12,6 +13,7 @@ extends Control
 
 var _elapsed := 0.0
 var _search_box: LineEdit
+var _population_label: Label
 var _player_inventory_panel: PlayerInventoryPanel
 var _warehouse_panel: WarehousePanel
 var _building_status_panel: BuildingStatusPanel
@@ -21,6 +23,7 @@ var _building_status_panel: BuildingStatusPanel
 var _cached_player_inventory: InventoryContainer = null
 var _cached_warehouse: Warehouse = null
 var _cached_building_site: BuildingSite = null
+var _cached_population_manager: PopulationManager = null
 
 
 func _ready() -> void:
@@ -116,11 +119,25 @@ func refresh_all() -> void:
 	if _building_status_panel != null:
 		_building_status_panel.set_building_site(_get_building_site())
 
+	if _population_label != null:
+		_population_label.text = _get_population_status_text()
+
 
 func _cache_nodes() -> void:
 	# UI nodes: lazy, chamado no _ready e opcionalmente no refresh_all.
 	if _search_box == null:
 		_search_box = get_node_or_null("MarginContainer/Frame/Root/SearchBox") as LineEdit
+
+	if _population_label == null:
+		_population_label = get_node_or_null("MarginContainer/Frame/Root/PopulationLabel") as Label
+		if _population_label == null:
+			_population_label = Label.new()
+			_population_label.name = "PopulationLabel"
+			_population_label.text = "Populacao: -- / --"
+			_population_label.add_theme_font_size_override("font_size", 13)
+			var root := get_node_or_null("MarginContainer/Frame/Root")
+			if root != null:
+				root.add_child(_population_label)
 
 	if _player_inventory_panel == null:
 		_player_inventory_panel = get_node_or_null(
@@ -157,6 +174,16 @@ func _cache_nodes() -> void:
 			if node is BuildingSite:
 				_cached_building_site = node
 
+	if _cached_population_manager == null or not is_instance_valid(_cached_population_manager):
+		if not population_manager_path.is_empty():
+			var node := get_node_or_null(population_manager_path)
+			if node is PopulationManager:
+				_cached_population_manager = node
+		if _cached_population_manager == null:
+			var managers := get_tree().get_nodes_in_group("population_manager")
+			if managers.size() > 0 and managers[0] is PopulationManager:
+				_cached_population_manager = managers[0]
+
 
 func _get_player_inventory() -> InventoryContainer:
 	return _cached_player_inventory
@@ -168,3 +195,9 @@ func _get_warehouse() -> Warehouse:
 
 func _get_building_site() -> BuildingSite:
 	return _cached_building_site
+
+
+func _get_population_status_text() -> String:
+	if _cached_population_manager == null or not is_instance_valid(_cached_population_manager):
+		return "Populacao: -- / --"
+	return _cached_population_manager.get_status_text()

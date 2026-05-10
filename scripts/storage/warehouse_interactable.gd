@@ -138,9 +138,8 @@ func _find_actor_inventory(actor: Node) -> InventoryContainer:
 		if from_method is InventoryContainer:
 			return from_method
 
-	var direct := actor.get_node_or_null("PlayerInventory")
-	if direct is InventoryContainer:
-		return direct
+	if actor is InventoryContainer:
+		return actor as InventoryContainer
 
 	return _find_inventory_recursive(actor)
 
@@ -158,12 +157,12 @@ func _find_inventory_recursive(node: Node) -> InventoryContainer:
 
 
 func _snapshot(inventory: InventoryContainer, warehouse: Warehouse) -> Dictionary:
-	var player_resources: Dictionary = {}
+	var actor_resources: Dictionary = {}
 	if inventory != null:
-		player_resources = inventory.get_all_resources() if inventory.has_method("get_all_resources") else _items_to_resources(inventory.get_all_items())
+		actor_resources = inventory.get_all_resources() if inventory.has_method("get_all_resources") else _items_to_resources(inventory.get_all_items())
 
 	return {
-		"player": player_resources,
+		"actor_inventory": actor_resources,
 		"warehouse": warehouse.get_stock_snapshot() if warehouse != null else {},
 	}
 
@@ -193,7 +192,7 @@ func _emit_deposit_event(
 
 	if result == "success":
 		for resource_id in _resource_keys(before, after):
-			var player_delta := int(delta.get("player", {}).get(resource_id, 0))
+			var player_delta := int(delta.get("actor_inventory", {}).get(resource_id, 0))
 			var warehouse_delta := int(delta.get("warehouse", {}).get(resource_id, 0))
 			if player_delta + warehouse_delta != 0:
 				semantic_integrity = "fail"
@@ -201,7 +200,7 @@ func _emit_deposit_event(
 				break
 	else:
 		for resource_id in _resource_keys(before, after):
-			var player_delta := int(delta.get("player", {}).get(resource_id, 0))
+			var player_delta := int(delta.get("actor_inventory", {}).get(resource_id, 0))
 			var warehouse_delta := int(delta.get("warehouse", {}).get(resource_id, 0))
 			if player_delta != 0 or warehouse_delta != 0:
 				semantic_integrity = "fail"
@@ -209,8 +208,8 @@ func _emit_deposit_event(
 				break
 
 	for resource_id in _resource_keys(before, after):
-		var before_total := int(before["player"].get(resource_id, 0)) + int(before["warehouse"].get(resource_id, 0))
-		var after_total := int(after["player"].get(resource_id, 0)) + int(after["warehouse"].get(resource_id, 0))
+		var before_total := int(before["actor_inventory"].get(resource_id, 0)) + int(before["warehouse"].get(resource_id, 0))
+		var after_total := int(after["actor_inventory"].get(resource_id, 0)) + int(after["warehouse"].get(resource_id, 0))
 		if before_total != after_total:
 			semantic_integrity = "fail"
 			failure_reason = "economic_conservation_failed"
@@ -235,7 +234,7 @@ func _emit_deposit_event(
 			"operation": "deposit_all",
 			"resource_id": "*",
 			"amount": amount,
-			"source": "PlayerInventory",
+			"source": "ActorInventory",
 			"target": String(warehouse.warehouse_id) if warehouse != null else "",
 			"success": result == "success",
 			"reason_if_failed": failure_reason,
@@ -248,7 +247,7 @@ func _resource_keys(before: Dictionary, after: Dictionary) -> Array[String]:
 	# O(N) via Dictionary como conjunto. Evita Array.has() O(N) no loop interno.
 	var seen: Dictionary = {}
 	var keys: Array[String] = []
-	for bucket in ["player", "warehouse"]:
+	for bucket in ["actor_inventory", "warehouse"]:
 		for source in [before, after]:
 			for resource_id in source.get(bucket, {}).keys():
 				var key := String(resource_id)

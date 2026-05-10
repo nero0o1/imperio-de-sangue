@@ -13,6 +13,11 @@ signal selection_changed(npc: NPCBase, is_selected: bool)
 @export var arrival_distance: float = 0.25
 @export var selected: bool = false
 @export var debug_enabled: bool = true
+@export var idle_wander_enabled: bool = true
+@export var idle_wander_radius: float = 1.5
+@export var idle_wander_interval_min: float = 2.5
+@export var idle_wander_interval_max: float = 5.0
+@export var idle_wander_arrival_distance: float = 0.35
 
 var current_order: NPCOrder = null
 var order_queue: NPCOrderQueue = NPCOrderQueue.new()
@@ -26,6 +31,11 @@ var _logged_movement_fallback := false
 var _semantic_motion_active := false
 # Inventário próprio do NPC para coleta e depósito de recursos.
 var _npc_inventory: NpcInventory = null
+var _idle_anchor: Vector3 = Vector3.ZERO
+var _idle_target: Vector3 = Vector3.ZERO
+var _idle_wait_elapsed := 0.0
+var _idle_wait_duration := 0.0
+var _idle_has_target := false
 
 @onready var _selection_indicator: Node3D = get_node_or_null("SelectionIndicator") as Node3D
 @onready var _navigation_agent: NavigationAgent3D = get_node_or_null("NavigationAgent3D") as NavigationAgent3D
@@ -39,6 +49,9 @@ func _ready() -> void:
 	order_executor.setup(self)
 	current_order = null
 	_target_position = global_position
+	_idle_anchor = global_position
+	_idle_target = global_position
+	_idle_wait_duration = _next_idle_wait()
 	_configure_navigation_agent()
 	_update_selection_visual()
 	_update_name_label()
@@ -60,6 +73,10 @@ func _physics_process(delta: float) -> void:
 			_process_move_to_position(delta)
 		NPCEnums.State.FOLLOWING:
 			_process_following(delta)
+		NPCEnums.State.IDLE:
+			_process_idle_wander(delta)
+		_:
+			_reset_idle_wander_if_busy()
 
 
 func select() -> void:
@@ -471,6 +488,53 @@ func _arrive_at_destination() -> void:
 		return
 	clear_order()
 	set_state(NPCEnums.State.SELECTED if selected else NPCEnums.State.IDLE)
+
+
+func _process_idle_wander(delta: float) -> void:
+	if not idle_wander_enabled or selected or current_order != null or tactical_state.blocks_auto_movement:
+		_reset_idle_wander_if_busy()
+		return
+
+	if _idle_has_target:
+		if _horizontal_distance_to(_idle_target) <= idle_wander_arrival_distance:
+			velocity.x = 0.0
+			velocity.z = 0.0
+			_apply_gravity(delta)
+			move_and_slide()
+			_idle_has_target = false
+			_idle_wait_elapsed = 0.0
+			_idle_wait_duration = _next_idle_wait()
+			return
+		_move_toward_position(_idle_target, delta)
+		return
+
+	velocity.x = 0.0
+	velocity.z = 0.0
+	_apply_gravity(delta)
+	move_and_slide()
+	_idle_wait_elapsed += delta
+	if _idle_wait_elapsed >= _idle_wait_duration:
+		_choose_idle_target()
+
+
+func _choose_idle_target() -> void:
+	if idle_wander_radius <= 0.05:
+		return
+	var angle := randf() * TAU
+	var distance := randf_range(idle_wander_radius * 0.35, idle_wander_radius)
+	_idle_target = _idle_anchor + Vector3(cos(angle) * distance, 0.0, sin(angle) * distance)
+	_idle_has_target = true
+
+
+func _next_idle_wait() -> float:
+	var min_wait := maxf(0.5, idle_wander_interval_min)
+	var max_wait := maxf(min_wait, idle_wander_interval_max)
+	return randf_range(min_wait, max_wait)
+
+
+func _reset_idle_wander_if_busy() -> void:
+	_idle_has_target = false
+	_idle_wait_elapsed = 0.0
 
 
 func _horizontal_distance_to(destination: Vector3) -> float:

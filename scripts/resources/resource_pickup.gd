@@ -123,19 +123,18 @@ func _find_actor_inventory(actor: Node) -> InventoryContainer:
 		if from_method is InventoryContainer:
 			return from_method
 
-	var direct := actor.get_node_or_null("PlayerInventory")
-	if direct is PlayerInventory:
-		return direct
+	if actor is InventoryContainer:
+		return actor as InventoryContainer
 
-	return _find_player_inventory_recursive(actor)
+	return _find_inventory_recursive(actor)
 
 
-func _find_player_inventory_recursive(node: Node) -> PlayerInventory:
+func _find_inventory_recursive(node: Node) -> InventoryContainer:
 	for child in node.get_children():
-		if child is PlayerInventory:
+		if child is InventoryContainer:
 			return child
 
-		var nested := _find_player_inventory_recursive(child)
+		var nested := _find_inventory_recursive(child)
 		if nested != null:
 			return nested
 
@@ -169,7 +168,7 @@ func _sync_legacy_fields() -> void:
 
 func _snapshot(inventory: InventoryContainer) -> Dictionary:
 	return {
-		"player": {
+		"actor_inventory": {
 			resource_id: inventory.get_quantity(StringName(resource_id)) if inventory != null else 0,
 		},
 		"pickup": {
@@ -208,7 +207,7 @@ func _emit_pickup_event(
 			"resource_id": resource_id,
 			"amount": collected_amount,
 			"source": String(name),
-			"target": "PlayerInventory",
+			"target": "ActorInventory",
 			"success": result == "success",
 			"reason_if_failed": failure_reason,
 			"invariant_result": "pass",

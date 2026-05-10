@@ -3,6 +3,7 @@ extends RefCounted
 
 var order_type: int = NPCEnums.OrderType.NONE
 var target_position: Vector3 = Vector3.ZERO
+var secondary_target_position: Vector3 = Vector3(INF, INF, INF)
 var target_node: Node3D = null
 var issued_by: Node = null
 var queue: bool = false
@@ -55,10 +56,11 @@ func is_valid() -> bool:
 
 
 func get_debug_summary() -> String:
-	return "%s status=%s target_position=%s target_node=%s queue=%s priority=%d issued_by=%s reason=%s label=%s created_at=%.2f" % [
+	return "%s status=%s target_position=%s secondary_target_position=%s target_node=%s queue=%s priority=%d issued_by=%s reason=%s label=%s created_at=%.2f" % [
 		NPCEnums.order_type_to_string(order_type),
 		NPCEnums.order_status_to_string(status),
 		str(target_position),
+		str(secondary_target_position),
 		str(target_node.name) if is_instance_valid(target_node) else "none",
 		str(queue),
 		priority,
@@ -98,6 +100,12 @@ static func follow_player(target: Node3D, actor: Node = null, queued: bool = fal
 
 static func assist_build(target: Node3D, actor: Node = null, queued: bool = false) -> NPCOrder:
 	return NPCOrder.new(NPCEnums.OrderType.ASSIST_BUILD, Vector3.ZERO, target, actor, queued)
+
+
+static func patrol_between(point_a: Vector3, point_b: Vector3, actor: Node = null, queued: bool = false) -> NPCOrder:
+	var order := NPCOrder.new(NPCEnums.OrderType.PATROL, point_a, null, actor, queued)
+	order.secondary_target_position = point_b
+	return order
 
 
 static func stop(actor: Node = null) -> NPCOrder:

@@ -11,6 +11,8 @@ signal construction_completed(building_site: BuildingSite)
 @export var step_count: int = 2
 @export var build_progress: float = 0.0
 @export var is_completed: bool = false
+@export var max_health: float = 100.0
+@export var current_health: float = 100.0
 
 @export var consume_policy: int = BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_ONLY
 
@@ -34,6 +36,8 @@ var build_progress_per_payment: float:
 func _ready() -> void:
 	build_progress = clampf(build_progress, 0.0, 100.0)
 	is_completed = is_completed or build_progress >= 100.0
+	max_health = maxf(max_health, 1.0)
+	current_health = clampf(current_health, 0.0, max_health)
 	# Computa o custo antes de _validate_configuration() para que get_step_cost()
 	# retorne o valor correto quando a validacao o chama.
 	_cached_step_cost = _compute_step_cost()
@@ -56,7 +60,7 @@ func can_build_step(actor: Node = null) -> bool:
 
 func build_step(actor: Node) -> bool:
 	var warehouse := resolve_warehouse(actor)
-	var inventory := _resolve_player_inventory(actor)
+	var inventory := _resolve_actor_inventory(actor)
 	var before := _snapshot(warehouse, inventory)
 
 	if is_completed:
@@ -216,16 +220,43 @@ func _emit_construction_completed_once() -> void:
 		return
 
 	_completion_signal_emitted = true
+	current_health = max_health
 	construction_completed.emit(self)
+
+
+func is_damaged() -> bool:
+	return current_health < max_health
+
+
+func repair(amount: float) -> float:
+	if amount <= 0.0 or not is_damaged():
+		return 0.0
+
+	var before := current_health
+	current_health = minf(max_health, current_health + amount)
+	print("[BuildingSite] %s reparada: %.1f/%.1f." % [String(building_id), current_health, max_health])
+	return current_health - before
+
+
+func damage_for_test(amount: float) -> float:
+	if amount <= 0.0:
+		return 0.0
+
+	var before := current_health
+	current_health = maxf(0.0, current_health - amount)
+	print("[BuildingSite] %s recebeu dano de teste: %.1f/%.1f." % [String(building_id), current_health, max_health])
+	return before - current_health
 
 
 func _snapshot(warehouse: Warehouse, inventory: InventoryContainer = null) -> Dictionary:
 	return {
 		"warehouse": warehouse.get_stock_snapshot() if warehouse != null else {},
-		"player": inventory.get_all_resources() if inventory != null else {},
+		"actor_inventory": inventory.get_all_resources() if inventory != null else {},
 		"building": {
 			"progress": build_progress,
 			"is_completed": is_completed,
+			"health": current_health,
+			"max_health": max_health,
 		},
 	}
 
@@ -246,7 +277,7 @@ func _emit_build_event(
 	if result == "success":
 		for resource_id in cost.keys():
 			var key := String(resource_id)
-			var source_key := "player" if source == "PlayerInventory" else "warehouse"
+			var source_key := "actor_inventory" if source == "ActorInventory" else "warehouse"
 			var before_amount := int(before[source_key].get(key, 0))
 			var after_amount := int(after[source_key].get(key, 0))
 			if before_amount - after_amount != int(cost[resource_id]):
@@ -259,9 +290,9 @@ func _emit_build_event(
 				semantic_integrity = "fail"
 				failure_reason = "blocked_build_mutated_warehouse"
 				break
-			if int(before["player"].get(resource_id, 0)) != int(after["player"].get(resource_id, 0)):
+			if int(before["actor_inventory"].get(resource_id, 0)) != int(after["actor_inventory"].get(resource_id, 0)):
 				semantic_integrity = "fail"
-				failure_reason = "blocked_build_mutated_player_inventory"
+				failure_reason = "blocked_build_mutated_actor_inventory"
 				break
 		if before["building"]["progress"] != after["building"]["progress"]:
 			semantic_integrity = "fail"
@@ -307,7 +338,7 @@ func _resource_keys(before: Dictionary, after: Dictionary) -> Array[String]:
 			if not seen.has(key):
 				seen[key] = true
 				keys.append(key)
-		for resource_id in source.get("player", {}).keys():
+		for resource_id in source.get("actor_inventory", {}).keys():
 			var key := String(resource_id)
 			if not seen.has(key):
 				seen[key] = true
@@ -318,7 +349,7 @@ func _resource_keys(before: Dictionary, after: Dictionary) -> Array[String]:
 
 func _resolve_payment_source(step_cost: Dictionary, actor: Node) -> Dictionary:
 	var warehouse := resolve_warehouse(actor)
-	var inventory := _resolve_player_inventory(actor)
+	var inventory := _resolve_actor_inventory(actor)
 
 	match consume_policy:
 		BuildingResourceConsumer.ConsumePolicy.PLAYER_ONLY, BuildingResourceConsumer.ConsumePolicy.INVENTORY_ONLY:
@@ -351,7 +382,7 @@ func _payment_source_for_warehouse(warehouse: Warehouse, step_cost: Dictionary) 
 func _payment_source_for_inventory(inventory: InventoryContainer, step_cost: Dictionary) -> Dictionary:
 	if inventory != null and inventory.has_items(step_cost):
 		return {
-			"source": "PlayerInventory",
+			"source": "ActorInventory",
 			"inventory": inventory,
 		}
 	return {}
@@ -362,13 +393,13 @@ func _consume_from_payment_source(payment_source: Dictionary, step_cost: Diction
 	if source_name == "Warehouse":
 		var warehouse := payment_source.get("warehouse") as Warehouse
 		return warehouse != null and warehouse.consume_resources(step_cost)
-	if source_name == "PlayerInventory":
+	if source_name == "ActorInventory":
 		var inventory := payment_source.get("inventory") as InventoryContainer
 		return inventory != null and inventory.remove_items(step_cost)
 	return false
 
 
-func _resolve_player_inventory(actor: Node) -> InventoryContainer:
+func _resolve_actor_inventory(actor: Node) -> InventoryContainer:
 	if actor == null:
 		return null
 	if actor.has_method("get_inventory"):
@@ -380,7 +411,7 @@ func _resolve_player_inventory(actor: Node) -> InventoryContainer:
 	for child in actor.get_children():
 		if child is InventoryContainer:
 			return child as InventoryContainer
-		var nested := _resolve_player_inventory(child)
+		var nested := _resolve_actor_inventory(child)
 		if nested != null:
 			return nested
 	return null

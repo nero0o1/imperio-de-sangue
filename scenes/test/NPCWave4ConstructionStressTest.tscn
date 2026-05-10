@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3]
+[gd_scene load_steps=27 format=3]
 
 [ext_resource type="Script" path="res://scripts/test/npc_wave4_construction_stress_test.gd" id="1_test_script"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="2_player"]
@@ -14,6 +14,7 @@
 [ext_resource type="PackedScene" path="res://scenes/buildings/BuildableCivilHouse.tscn" id="16_buildable_civil_house"]
 [ext_resource type="PackedScene" path="res://scenes/buildings/BuildableWarehouse.tscn" id="17_buildable_warehouse"]
 [ext_resource type="PackedScene" path="res://scenes/ui/BuildMenu.tscn" id="18_build_menu"]
+[ext_resource type="Script" path="res://scripts/core/population_manager.gd" id="19_population_manager"]
 
 [sub_resource type="StandardMaterial3D" id="1_ground_material"]
 albedo_color = Color(0.16, 0.22, 0.19, 1)
@@ -104,6 +105,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
 [node name="PlayerInventory" type="Node" parent="Player"]
 script = ExtResource("6_player_inventory")
 
+[node name="PopulationManager" type="Node" parent="."]
+script = ExtResource("19_population_manager")
+base_capacity = 3
+capacity_per_house = 5
+starting_population = 0
+
 [node name="BuildPlacementController" type="Node3D" parent="."]
 script = ExtResource("15_build_placement_controller")
 buildable_civil_house_scene = ExtResource("16_buildable_civil_house")
@@ -112,6 +119,7 @@ player_path = NodePath("../Player")
 build_menu_path = NodePath("../BuildMenuLayer/BuildMenu")
 movement_bounds_min = Vector2(-36, -36)
 movement_bounds_max = Vector2(36, 36)
+population_manager_path = NodePath("PopulationManager")
 
 [node name="WoodPickup" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 1, 18)
@@ -146,7 +154,7 @@ shape = SubResource("11_interactable_shape")
 [node name="InstructionLabel" type="Label3D" parent="."]
 transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, -30, 2.2, -24)
 billboard = 1
-text = "Wave 4.4.1 Integrated Construction Test\nH abre Construir. R gira. Enter confirma. Esc cancela.\nConstrua Armazem, Casa Civil, crie civis e teste comandos."
+text = "Wave 4.6 Teste de Construcao Integrado\nH abre Construir. R gira. Enter confirma. Esc cancela.\nConstrua Armazem, Casa Civil, crie civis e teste comandos."
 font_size = 28
 outline_size = 8
 
@@ -174,4 +182,5 @@ player_inventory_path = NodePath("../../Player/PlayerInventory")
 
 [node name="GameHUD" parent="HUDLayer" instance=ExtResource("12_game_hud")]
 player_inventory_path = NodePath("../../Player/PlayerInventory")
+population_manager_path = NodePath("../../PopulationManager")
 start_open = false

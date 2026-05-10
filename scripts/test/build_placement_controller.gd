@@ -8,6 +8,7 @@ const BuildingPlacementPreviewScript = preload("res://scripts/building/building_
 @export var player_path: NodePath = NodePath("../Player")
 @export var build_menu_path: NodePath
 @export var warehouse_path: NodePath
+@export var population_manager_path: NodePath
 @export var movement_bounds_min: Vector2 = Vector2(-36.0, -36.0)
 @export var movement_bounds_max: Vector2 = Vector2(36.0, 36.0)
 @export var placement_distance: float = 80.0
@@ -362,6 +363,7 @@ func _configure_buildable_house(buildable_house: Node3D) -> void:
 	if npc_house != null:
 		npc_house.max_spawned_npcs = _get_stress_max_npcs()
 		npc_house.spawn_radius = 8.0
+		npc_house.population_manager_path = _get_population_manager_path_for(npc_house)
 		var parent := get_parent()
 		if parent != null and parent.has_method("_on_house_creation_requested"):
 			var creation_callable := Callable(parent, "_on_house_creation_requested")
@@ -385,6 +387,18 @@ func _get_warehouse_path_for(from_node: Node) -> NodePath:
 	return NodePath("")
 
 
+func _get_population_manager_path_for(from_node: Node) -> NodePath:
+	var explicit_path := _make_relative_path(from_node, population_manager_path)
+	if not String(explicit_path).is_empty():
+		return explicit_path
+
+	var manager := _find_first_child_of_type(get_parent(), "PopulationManager") as PopulationManager
+	if manager != null:
+		return from_node.get_path_to(manager)
+
+	return NodePath("")
+
+
 func _find_first_child_of_type(root: Node, class_name_to_find: String) -> Node:
 	if root == null:
 		return null
@@ -402,6 +416,8 @@ func _node_matches_type(node: Node, class_name_to_find: String) -> bool:
 	if class_name_to_find == "BuildingSite" and node is BuildingSite:
 		return true
 	if class_name_to_find == "NPCHouse" and node is NPCHouse:
+		return true
+	if class_name_to_find == "PopulationManager" and node is PopulationManager:
 		return true
 	if class_name_to_find == "Warehouse" and node is Warehouse:
 		return true

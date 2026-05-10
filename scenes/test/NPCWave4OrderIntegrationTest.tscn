@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://scripts/test/npc_wave4_order_integration_test.gd" id="1_test_script"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="2_player"]
@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/inventory/player_inventory.gd" id="12_player_inventory"]
 [ext_resource type="Script" path="res://scripts/debug/inventory_debug_hud.gd" id="13_debug_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud/GameHUD.tscn" id="14_game_hud"]
+[ext_resource type="Script" path="res://scripts/core/population_manager.gd" id="15_population_manager"]
 
 [sub_resource type="StandardMaterial3D" id="1_ground_mat"]
 albedo_color = Color(0.16, 0.22, 0.19, 1)
@@ -95,7 +96,7 @@ surface_material_override/0 = SubResource("4_marker_mat")
 [node name="InstructionLabel" type="Label3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 15)
 billboard = 1
-text = "Wave 4.5.1 — Teste de Ordens Semanticas\nOlhe para um NPC e pressione E para selecionar e abrir o menu.\nCaixa azul escura = Armazem interagivel. Caixas marrons = Madeira. Cinzas = Pedra."
+text = "Wave 4.6 - Teste de Ordens Semanticas\nOlhe para um NPC e pressione E para selecionar e abrir o menu.\nCaixa azul escura = Armazem interagivel. Caixas marrons = Madeira. Cinzas = Pedra."
 font_size = 28
 outline_size = 8
 
@@ -107,6 +108,12 @@ script = ExtResource("12_player_inventory")
 
 [node name="Warehouse" type="Node" parent="."]
 script = ExtResource("10_warehouse")
+
+[node name="PopulationManager" type="Node" parent="."]
+script = ExtResource("15_population_manager")
+base_capacity = 3
+capacity_per_house = 5
+starting_population = 3
 
 [node name="WarehouseInteractable" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 1, 0)
@@ -133,12 +140,16 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 5)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 5)
 creation_enabled = true
 max_spawned_npcs = 5
+population_manager_path = NodePath("../PopulationManager")
 
 [node name="CivilHouseA" parent="." instance=ExtResource("5_civil_house")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -5)
 
 [node name="BuildingSite" parent="CivilHouseA"]
 warehouse_path = NodePath("../../Warehouse")
+
+[node name="NPCHouse" parent="CivilHouseA"]
+population_manager_path = NodePath("../../PopulationManager")
 
 [node name="WarehouseBuilding" parent="." instance=ExtResource("6_warehouse_building")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -5)
@@ -393,4 +404,5 @@ player_inventory_path = NodePath("../../Player/PlayerInventory")
 [node name="GameHUD" parent="HUDLayer" instance=ExtResource("14_game_hud")]
 player_inventory_path = NodePath("../../Player/PlayerInventory")
 warehouse_path = NodePath("../../Warehouse")
+population_manager_path = NodePath("../../PopulationManager")
 start_open = false

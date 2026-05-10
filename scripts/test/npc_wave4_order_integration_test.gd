@@ -8,31 +8,36 @@ extends Node3D
 @export var command_menu_path: NodePath = NodePath("NPCCommandMenuLayer/NPCCommandMenu")
 @export var creation_menu_path: NodePath = NodePath("NPCCreationMenuLayer/NPCCreationMenu")
 @export var warehouse_path: NodePath = NodePath("Warehouse")
+@export var player_inventory_path: NodePath = NodePath("Player/PlayerInventory")
 @export var move_distance: float = 6.0
 @export var patrol_radius: float = 8.0
 @export var debug_keyboard_commands_enabled: bool = false
 
 ## Recursos iniciais pré-carregados no armazém.
-@export var initial_wood: int = 200
-@export var initial_stone: int = 100
+@export var initial_player_wood: int = 60
+@export var initial_player_stone: int = 30
+@export var debug_initial_warehouse_wood: int = 0
+@export var debug_initial_warehouse_stone: int = 0
 
 var _selected_npc: NPCBase = null
 
 @onready var _player: Node3D = get_node_or_null(player_path) as Node3D
+@onready var _player_inventory: InventoryContainer = get_node_or_null(player_inventory_path) as InventoryContainer
 @onready var _command_menu: NPCCommandMenu = get_node_or_null(command_menu_path) as NPCCommandMenu
 @onready var _creation_menu: NPCCreationMenu = get_node_or_null(creation_menu_path) as NPCCreationMenu
 @onready var _warehouse = get_node_or_null(warehouse_path)
 
 
 func _ready() -> void:
-	_prepopulate_warehouse()
+	_prepopulate_player_inventory()
+	_prepopulate_debug_warehouse()
 	_connect_npc_signals()
 	_connect_house_signals()
 	_connect_command_menu()
 	_connect_creation_menu()
 	var debug_status := "ativadas" if debug_keyboard_commands_enabled else "desativadas"
-	print("[OrderTest] Cena Wave 4.5.1 pronta. Armazem: %d wood, %d stone. Teclas debug: %s." % [
-		initial_wood, initial_stone, debug_status
+	print("[OrderTest] Cena Wave 4.6 pronta. Player: %d wood/%d stone. Armazem debug: %d wood/%d stone. Teclas debug: %s." % [
+		initial_player_wood, initial_player_stone, debug_initial_warehouse_wood, debug_initial_warehouse_stone, debug_status
 	])
 
 
@@ -64,15 +69,28 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # ─── Armazém ────────────────────────────────────────────────────────────────
 
-func _prepopulate_warehouse() -> void:
+func _prepopulate_player_inventory() -> void:
+	if _player_inventory == null and _player != null and _player.has_method("get_inventory"):
+		_player_inventory = _player.call("get_inventory") as InventoryContainer
+	if _player_inventory == null:
+		print("[OrderTest] Inventario do player nao encontrado - recursos iniciais nao carregados.")
+		return
+	if initial_player_wood > 0:
+		_player_inventory.add_item(&"wood", initial_player_wood)
+	if initial_player_stone > 0:
+		_player_inventory.add_item(&"stone", initial_player_stone)
+	print("[OrderTest] Inventario do player populado: wood=%d, stone=%d." % [initial_player_wood, initial_player_stone])
+
+
+func _prepopulate_debug_warehouse() -> void:
 	if _warehouse == null or not _warehouse.has_method("add_resource"):
 		print("[OrderTest] Armazem nao encontrado — recursos iniciais nao carregados.")
 		return
-	if initial_wood > 0:
-		_warehouse.add_resource("wood", initial_wood)
-	if initial_stone > 0:
-		_warehouse.add_resource("stone", initial_stone)
-	print("[OrderTest] Armazem populado: wood=%d, stone=%d." % [initial_wood, initial_stone])
+	if debug_initial_warehouse_wood > 0:
+		_warehouse.add_resource("wood", debug_initial_warehouse_wood)
+	if debug_initial_warehouse_stone > 0:
+		_warehouse.add_resource("stone", debug_initial_warehouse_stone)
+	print("[OrderTest] Armazem debug: wood=%d, stone=%d." % [debug_initial_warehouse_wood, debug_initial_warehouse_stone])
 
 
 # ─── Seleção de NPC ──────────────────────────────────────────────────────────
@@ -143,7 +161,7 @@ func _order_patrol_forward() -> void:
 	forward = forward.normalized()
 	# Ponto de patrulha: frente do NPC pelo raio configurado.
 	var dest := origin + forward * patrol_radius
-	_selected_npc.issue_order(NPCOrder.make(NPCEnums.OrderType.PATROL, dest, null, _player))
+	_selected_npc.issue_order(NPCOrder.patrol_between(origin, dest, _player))
 	print("[OrderTest] Patrulha emitida para %s -> %s." % [_selected_npc.npc_name, str(dest)])
 
 

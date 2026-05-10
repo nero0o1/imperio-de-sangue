@@ -61,6 +61,8 @@ func _set_house_enabled(enabled: bool) -> void:
 	_npc_house.creation_enabled = enabled
 	_npc_house.visible = not keep_house_visual_hidden and enabled
 	_set_collision_enabled(_npc_house, enabled)
+	if enabled and _npc_house.has_method("register_population_capacity"):
+		_npc_house.call("register_population_capacity")
 
 	if _building_site != null and disable_building_site_collision_when_complete:
 		_set_collision_enabled(_building_site, not enabled)
