@@ -3,6 +3,11 @@ extends CharacterBody3D
 
 signal selection_changed(npc: NPCBase, is_selected: bool)
 
+const NAV_STUCK_CHECK_INTERVAL := 2.0
+const NAV_STUCK_MIN_PROGRESS := 0.12
+const NAV_STUCK_MAX_RECOVERY_ATTEMPTS := 2
+const NAV_STUCK_OFFSET_DISTANCE := 1.5
+
 @export var npc_name: String = "Civil NPC"
 @export_enum("CIVIL", "SOLDIER", "HOSTILE") var role: int = NPCEnums.Role.CIVIL
 @export_enum("PLAYER", "ENEMY", "NEUTRAL") var faction: int = NPCEnums.Faction.PLAYER
@@ -29,6 +34,12 @@ var _target_position: Vector3 = Vector3.ZERO
 var _use_navigation_agent := false
 var _logged_movement_fallback := false
 var _semantic_motion_active := false
+var _last_move_position: Vector3 = Vector3.ZERO
+var _stuck_elapsed: float = 0.0
+var _stuck_repath_attempts: int = 0
+var _navigation_failed: bool = false
+var _recovering_from_stuck: bool = false
+var _recovery_return_target: Vector3 = Vector3.ZERO
 # Inventário próprio do NPC para coleta e depósito de recursos.
 var _npc_inventory: NpcInventory = null
 var _idle_anchor: Vector3 = Vector3.ZERO
@@ -49,6 +60,7 @@ func _ready() -> void:
 	order_executor.setup(self)
 	current_order = null
 	_target_position = global_position
+	_reset_navigation_recovery()
 	_idle_anchor = global_position
 	_idle_target = global_position
 	_idle_wait_duration = _next_idle_wait()
@@ -312,6 +324,7 @@ func _begin_semantic_move(destination: Vector3, tactical: String) -> void:
 
 	_target_position = destination
 	_semantic_motion_active = true
+	_reset_navigation_recovery()
 	tactical_state.set_state(tactical)
 	if _use_navigation_agent:
 		_navigation_agent.target_position = destination
@@ -325,6 +338,7 @@ func _begin_semantic_follow(target_node: Node3D) -> void:
 		set_state(NPCEnums.State.BLOCKED)
 		return
 	_semantic_motion_active = true
+	_reset_navigation_recovery()
 	tactical_state.set_state(NPCTacticalState.FOLLOWING)
 	if not _use_navigation_agent:
 		_log_movement_fallback_once()
@@ -338,7 +352,11 @@ func _update_semantic_follow_target(target_node: Node3D) -> void:
 
 
 func _set_semantic_move_target(destination: Vector3) -> void:
+	if _recovering_from_stuck:
+		_recovery_return_target = destination
+		return
 	_target_position = destination
+	_recovery_return_target = destination
 	if _use_navigation_agent:
 		_navigation_agent.target_position = destination
 
@@ -346,6 +364,7 @@ func _set_semantic_move_target(destination: Vector3) -> void:
 func _stop_semantic_motion(reset_target: bool = true) -> void:
 	velocity = Vector3.ZERO
 	_semantic_motion_active = false
+	_reset_navigation_recovery()
 	if reset_target:
 		_target_position = global_position
 		if _navigation_agent != null:
@@ -403,11 +422,17 @@ func _configure_navigation_agent() -> void:
 
 func _process_move_to_position(delta: float) -> void:
 	if _has_arrived_at(_target_position):
+		if _recovering_from_stuck:
+			_recovering_from_stuck = false
+			_set_semantic_move_target(_recovery_return_target)
+			_reset_navigation_progress_sample()
+			return
 		_arrive_at_destination()
 		return
 
 	var next_position := _get_next_movement_position()
 	_move_toward_position(next_position, delta)
+	_update_navigation_recovery(delta)
 
 
 func _process_following(delta: float) -> void:
@@ -433,6 +458,7 @@ func _process_following(delta: float) -> void:
 		_navigation_agent.target_position = _target_position
 
 	_move_toward_position(_get_next_movement_position(), delta)
+	_update_navigation_recovery(delta)
 
 
 func _get_next_movement_position() -> Vector3:
@@ -479,6 +505,83 @@ func _has_arrived_at(destination: Vector3) -> bool:
 		return true
 
 	return _use_navigation_agent and _navigation_agent.is_navigation_finished()
+
+
+func consume_navigation_failure() -> bool:
+	if not _navigation_failed:
+		return false
+	_navigation_failed = false
+	return true
+
+
+func _reset_navigation_recovery() -> void:
+	_last_move_position = global_position
+	_stuck_elapsed = 0.0
+	_stuck_repath_attempts = 0
+	_navigation_failed = false
+	_recovering_from_stuck = false
+	_recovery_return_target = _target_position
+
+
+func _reset_navigation_progress_sample() -> void:
+	_last_move_position = global_position
+	_stuck_elapsed = 0.0
+
+
+func _update_navigation_recovery(delta: float) -> void:
+	if not _semantic_motion_active or tactical_state.blocks_auto_movement:
+		_reset_navigation_progress_sample()
+		return
+	if _has_arrived_at(_target_position):
+		_reset_navigation_progress_sample()
+		return
+	if _horizontal_distance_to(_target_position) <= arrival_distance * 2.0:
+		_reset_navigation_progress_sample()
+		return
+
+	_stuck_elapsed += delta
+	if _stuck_elapsed < NAV_STUCK_CHECK_INTERVAL:
+		return
+
+	var moved := global_position.distance_to(_last_move_position)
+	if moved >= NAV_STUCK_MIN_PROGRESS:
+		_reset_navigation_progress_sample()
+		return
+
+	_handle_navigation_stuck()
+
+
+func _handle_navigation_stuck() -> void:
+	_log("[NPCNavigation] stuck detectado")
+	if _stuck_repath_attempts >= NAV_STUCK_MAX_RECOVERY_ATTEMPTS:
+		_log("[NPCNavigation] falha final apos tentativas de recuperacao")
+		_navigation_failed = true
+		_semantic_motion_active = false
+		velocity = Vector3.ZERO
+		set_state(NPCEnums.State.BLOCKED)
+		_reset_navigation_progress_sample()
+		return
+
+	_stuck_repath_attempts += 1
+	_log("[NPCNavigation] recalculando rota")
+	if _use_navigation_agent and _navigation_agent != null:
+		_navigation_agent.target_position = _target_position
+
+	var to_target := _target_position - global_position
+	to_target.y = 0.0
+	if to_target.length() <= 0.001:
+		to_target = -global_transform.basis.z
+	var lateral := Vector3(-to_target.z, 0.0, to_target.x).normalized()
+	if _stuck_repath_attempts % 2 == 0:
+		lateral = -lateral
+
+	_recovery_return_target = _target_position
+	var offset_target := global_position + lateral * NAV_STUCK_OFFSET_DISTANCE
+	_log("[NPCNavigation] tentando offset lateral")
+	_recovering_from_stuck = false
+	_set_semantic_move_target(offset_target)
+	_recovering_from_stuck = true
+	_reset_navigation_progress_sample()
 
 
 func _arrive_at_destination() -> void:

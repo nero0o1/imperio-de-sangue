@@ -182,8 +182,9 @@ func _build_ui() -> void:
 
 	_add_section(btn_box, "── CONSTRUCAO / ECONOMIA ──")
 	_add_button(btn_box, "Ajudar construcao", _on_assist_build_pressed)
-	_add_button(btn_box, "Coletar recurso", _on_gather_pressed)
-	_add_button(btn_box, "Designar coletor", _on_gather_pressed)
+	_add_button(btn_box, "Coletar madeira", _on_gather_wood_pressed)
+	_add_button(btn_box, "Coletar pedra", _on_gather_stone_pressed)
+	_add_button(btn_box, "Debug: coletar qualquer recurso", _on_gather_pressed)
 	_add_button(btn_box, "Depositar no armazem", _on_force_drop_pressed)
 	_add_button(btn_box, "Reparar construcao", _on_repair_pressed)
 
@@ -387,6 +388,22 @@ func _on_gather_pressed() -> void:
 		return
 	print("[Order] %s GATHER_RESOURCE -> target=%s" % [current_npc.npc_name, target.name])
 	var order := NPCOrder.make(NPCEnums.OrderType.GATHER_RESOURCE, Vector3.ZERO, target, current_npc, queue_mode)
+	current_npc.issue_order(order)
+
+
+func _on_gather_wood_pressed() -> void:
+	_issue_typed_gather(&"wood")
+
+
+func _on_gather_stone_pressed() -> void:
+	_issue_typed_gather(&"stone")
+
+
+func _issue_typed_gather(resource_id: StringName) -> void:
+	if not _has_valid_current_npc():
+		return
+	print("[UIOrder] %s clicked GATHER_RESOURCE type=%s" % [current_npc.npc_name, String(resource_id)])
+	var order := NPCOrder.gather_resource(resource_id, null, current_npc, queue_mode)
 	current_npc.issue_order(order)
 
 

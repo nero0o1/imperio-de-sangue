@@ -11,6 +11,7 @@ var priority: int = 0
 var status: int = NPCEnums.OrderStatus.PENDING
 var failure_reason: String = ""
 var debug_label: String = ""
+var resource_id_filter: StringName = &""  # GATHER_RESOURCE: se preenchido, só coleta este tipo
 var created_at: float = 0.0
 var started_at: float = 0.0
 var completed_at: float = 0.0
@@ -23,7 +24,8 @@ func _init(
 	p_issued_by: Node = null,
 	p_queue: bool = false,
 	p_priority: int = 0,
-	p_debug_label: String = ""
+	p_debug_label: String = "",
+	p_resource_id_filter: StringName = &""
 ) -> void:
 	order_type = p_order_type
 	target_position = p_target_position
@@ -32,6 +34,7 @@ func _init(
 	queue = p_queue
 	priority = p_priority
 	debug_label = p_debug_label
+	resource_id_filter = p_resource_id_filter
 	created_at = Time.get_unix_time_from_system()
 
 
@@ -56,7 +59,7 @@ func is_valid() -> bool:
 
 
 func get_debug_summary() -> String:
-	return "%s status=%s target_position=%s secondary_target_position=%s target_node=%s queue=%s priority=%d issued_by=%s reason=%s label=%s created_at=%.2f" % [
+	return "%s status=%s target_position=%s secondary_target_position=%s target_node=%s queue=%s priority=%d issued_by=%s reason=%s label=%s resource_id_filter=%s created_at=%.2f" % [
 		NPCEnums.order_type_to_string(order_type),
 		NPCEnums.order_status_to_string(status),
 		str(target_position),
@@ -67,6 +70,7 @@ func get_debug_summary() -> String:
 		str(issued_by.name) if is_instance_valid(issued_by) else "none",
 		failure_reason,
 		debug_label,
+		String(resource_id_filter),
 		created_at,
 	]
 
@@ -82,8 +86,8 @@ func mark_finished(new_status: int, reason: String = "") -> void:
 	completed_at = Time.get_unix_time_from_system()
 
 
-static func make(p_order_type: int, p_position: Vector3 = Vector3.ZERO, target: Node3D = null, actor: Node = null, queued: bool = false, order_priority: int = 0, label: String = "") -> NPCOrder:
-	return NPCOrder.new(p_order_type, p_position, target, actor, queued, order_priority, label)
+static func make(p_order_type: int, p_position: Vector3 = Vector3.ZERO, target: Node3D = null, actor: Node = null, queued: bool = false, order_priority: int = 0, label: String = "", resource_id: StringName = &"") -> NPCOrder:
+	return NPCOrder.new(p_order_type, p_position, target, actor, queued, order_priority, label, resource_id)
 
 
 static func move_to_position(destination: Vector3, actor: Node = null, queued: bool = false) -> NPCOrder:
@@ -100,6 +104,20 @@ static func follow_player(target: Node3D, actor: Node = null, queued: bool = fal
 
 static func assist_build(target: Node3D, actor: Node = null, queued: bool = false) -> NPCOrder:
 	return NPCOrder.new(NPCEnums.OrderType.ASSIST_BUILD, Vector3.ZERO, target, actor, queued)
+
+
+static func gather_resource(resource_id: StringName = &"", target: Node3D = null, actor: Node = null, queued: bool = false) -> NPCOrder:
+	var order := NPCOrder.new(
+		NPCEnums.OrderType.GATHER_RESOURCE,
+		Vector3.ZERO,
+		target,
+		actor,
+		queued,
+		0,
+		"gather_%s" % String(resource_id),
+		resource_id
+	)
+	return order
 
 
 static func patrol_between(point_a: Vector3, point_b: Vector3, actor: Node = null, queued: bool = false) -> NPCOrder:

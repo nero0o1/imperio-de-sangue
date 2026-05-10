@@ -27,6 +27,7 @@ var _collector_warehouse: Node3D = null
 var _patrol_points: Array[Vector3] = []
 var _patrol_index: int = 0
 var _repair_step_elapsed: float = 0.0
+var _collector_resource_filter: StringName = &""  # filtro de tipo para GATHER_RESOURCE
 
 
 func setup(npc: NPCBase) -> void:
@@ -64,9 +65,12 @@ func start_order(order: NPCOrder) -> int:
 		NPCEnums.OrderType.ASSIST_BUILD:
 			var assist_reason := _validate_build_target(order)
 			if not assist_reason.is_empty():
+				if assist_reason.begins_with("ASSIST_BUILD completed"):
+					return _finish(order, NPCEnums.OrderStatus.COMPLETED, assist_reason)
 				return _finish(order, NPCEnums.OrderStatus.FAILED, assist_reason)
 			_npc.tactical_state.reset_movement_modifiers()
-			_npc._begin_semantic_move(order.target_node.global_position, NPCTacticalState.ASSISTING_BUILD)
+			if is_instance_valid(order.target_node):
+				_npc._begin_semantic_move(order.target_node.global_position, NPCTacticalState.ASSISTING_BUILD)
 			return NPCEnums.OrderStatus.RUNNING
 		NPCEnums.OrderType.ATTACK_MOVE:
 			if not order.target_position.is_finite():
@@ -123,6 +127,8 @@ func start_order(order: NPCOrder) -> int:
 func process_order(order: NPCOrder, delta: float) -> int:
 	if _npc == null or order == null:
 		return NPCEnums.OrderStatus.FAILED
+	if _consume_navigation_failure():
+		return _finish(order, NPCEnums.OrderStatus.FAILED, "Movement failed after stuck recovery attempts.")
 
 	match order.order_type:
 		NPCEnums.OrderType.MOVE_TO_POSITION:
@@ -159,10 +165,17 @@ func cancel_order(order: NPCOrder, reason: String) -> void:
 
 
 func _process_assist_build(order: NPCOrder, delta: float) -> int:
-	if not is_instance_valid(order.target_node):
-		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD failed: target node is no longer valid.")
-	if bool(order.target_node.get("is_completed")):
-		return _finish(order, NPCEnums.OrderStatus.COMPLETED, "ASSIST_BUILD completed: target construction is already complete.")
+	# Se o alvo atual deixou de existir ou foi concluído, tenta redirecionar para o próximo site.
+	if not _is_valid_incomplete_building_site(order.target_node):
+		var next_site := _find_nearest_incomplete_building_site()
+		if next_site == null:
+			return _finish(order, NPCEnums.OrderStatus.COMPLETED, "ASSIST_BUILD completed: nenhuma construcao pendente encontrada.")
+		# Redireciona para o próximo canteiro sem criar nova ordem.
+		order.target_node = next_site
+		_build_step_elapsed = 0.0
+		_npc.tactical_state.reset_movement_modifiers()
+		_npc._begin_semantic_move(order.target_node.global_position, NPCTacticalState.ASSISTING_BUILD)
+		return NPCEnums.OrderStatus.RUNNING
 
 	_npc._set_semantic_move_target(order.target_node.global_position)
 	if not _npc._is_within_horizontal_distance(order.target_node.global_position, BUILD_INTERACTION_DISTANCE):
@@ -178,18 +191,26 @@ func _process_assist_build(order: NPCOrder, delta: float) -> int:
 	_build_step_elapsed = 0.0
 	if order.target_node.has_method("can_build_step") and not bool(order.target_node.call("can_build_step", _npc)):
 		if bool(order.target_node.get("is_completed")):
-			return _finish(order, NPCEnums.OrderStatus.COMPLETED, "ASSIST_BUILD completed: construction finished.")
-		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD failed: target cannot accept build progress now.")
+			# Concluído agora; loop vai redirecionar na próxima frame.
+			return NPCEnums.OrderStatus.RUNNING
+		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD blocked: recursos insuficientes para continuar.")
 	if not order.target_node.has_method("build_step"):
 		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD failed: target does not accept build progress.")
 
 	var success := bool(order.target_node.call("build_step", _npc))
 	if not success:
 		if bool(order.target_node.get("is_completed")):
-			return _finish(order, NPCEnums.OrderStatus.COMPLETED, "ASSIST_BUILD completed: construction finished.")
+			return NPCEnums.OrderStatus.RUNNING
 		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD failed: build_step returned false.")
+	# build_step retornou true; se concluído agora, loop redireciona na próxima frame.
 	if bool(order.target_node.get("is_completed")):
-		return _finish(order, NPCEnums.OrderStatus.COMPLETED, "ASSIST_BUILD completed: construction finished.")
+		var next_site_after_build := _find_nearest_incomplete_building_site()
+		if next_site_after_build == null:
+			return _finish(order, NPCEnums.OrderStatus.COMPLETED, "ASSIST_BUILD completed: nenhuma construcao pendente encontrada.")
+		order.target_node = next_site_after_build
+		_build_step_elapsed = 0.0
+		_npc.tactical_state.reset_movement_modifiers()
+		_npc._begin_semantic_move(order.target_node.global_position, NPCTacticalState.ASSISTING_BUILD)
 	return NPCEnums.OrderStatus.RUNNING
 
 
@@ -198,12 +219,27 @@ func _start_gather_resource(order: NPCOrder) -> int:
 	if inv == null:
 		return _finish(order, NPCEnums.OrderStatus.FAILED, "GATHER_RESOURCE failed: NPC sem inventario proprio.")
 
+	# Salva filtro de tipo para restringir coleta ao recurso designado (ex: "wood", "stone").
+	# Se resource_id_filter == &"" (padrão), aceita qualquer pickup válido.
+	_collector_resource_filter = order.resource_id_filter
+
 	_collector_target = null
-	if _is_valid_resource_pickup(order.target_node):
-		_collector_target = order.target_node as Node3D
+	if _is_valid_resource_pickup_for_filter(order.target_node, &""):
+		var target_resource := StringName(String(order.target_node.get("resource_id")))
+		if _collector_resource_filter == &"":
+			_collector_resource_filter = target_resource
+		if _is_valid_resource_pickup_for_filter(order.target_node, _collector_resource_filter):
+			_collector_target = order.target_node as Node3D
+		else:
+			_npc._log("GATHER_RESOURCE ignored initial target: resource_id mismatch.")
+	_npc._log("Coleta iniciada: %s" % _resource_filter_label(_collector_resource_filter))
 	_npc.tactical_state.reset_movement_modifiers()
 	if not inv.is_empty():
+		_npc._log("Indo depositar recurso: %s" % _resource_filter_label(_collector_resource_filter))
 		_set_collector_state(COLLECTOR_GOING_TO_DEPOSIT)
+	elif _collector_target != null:
+		_set_collector_state(COLLECTOR_GOING_TO_GATHER)
+		_npc._begin_semantic_move(_collector_target.global_position, NPCTacticalState.MOVING)
 	else:
 		_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 	return NPCEnums.OrderStatus.RUNNING
@@ -221,22 +257,23 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 	match _collector_state:
 		COLLECTOR_FINDING_RESOURCE:
 			if not inv.is_empty():
+				_npc._log("Indo depositar recurso: %s" % _resource_filter_label(_collector_resource_filter))
 				_set_collector_state(COLLECTOR_GOING_TO_DEPOSIT)
 				return NPCEnums.OrderStatus.RUNNING
-			_collector_target = _find_nearest_resource_pickup()
+			_collector_target = _find_nearest_resource_pickup(_collector_resource_filter)
 			if _collector_target == null:
-				return _finish(order, NPCEnums.OrderStatus.COMPLETED, "Coleta encerrada: nenhum recurso valido encontrado.")
+				return _finish(order, NPCEnums.OrderStatus.COMPLETED, "Nenhum recurso encontrado para o tipo: %s" % _resource_filter_label(_collector_resource_filter))
 			_set_collector_state(COLLECTOR_GOING_TO_GATHER)
 			_npc._begin_semantic_move(_collector_target.global_position, NPCTacticalState.MOVING)
 		COLLECTOR_GOING_TO_GATHER:
-			if not _is_valid_resource_pickup(_collector_target):
+			if not _is_valid_resource_pickup_for_filter(_collector_target, _collector_resource_filter):
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 				return NPCEnums.OrderStatus.RUNNING
 			_npc._set_semantic_move_target(_collector_target.global_position)
 			if _npc._is_within_horizontal_distance(_collector_target.global_position, GATHER_INTERACTION_DISTANCE):
 				_set_collector_state(COLLECTOR_COLLECTING)
 		COLLECTOR_COLLECTING:
-			if not _is_valid_resource_pickup(_collector_target):
+			if not _is_valid_resource_pickup_for_filter(_collector_target, _collector_resource_filter):
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 				return NPCEnums.OrderStatus.RUNNING
 			_npc.tactical_state.blocks_auto_movement = true
@@ -246,6 +283,7 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 			if inv.is_empty():
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 			else:
+				_npc._log("Indo depositar recurso: %s" % _resource_filter_label(_collector_resource_filter))
 				_set_collector_state(COLLECTOR_GOING_TO_DEPOSIT)
 		COLLECTOR_GOING_TO_DEPOSIT:
 			_collector_warehouse = _find_nearest_warehouse_interactable()
@@ -268,6 +306,7 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 			_collector_warehouse.call("interact", _npc)
 			_npc.tactical_state.blocks_auto_movement = false
 			if inv.is_empty():
+				_npc._log("Deposito concluido; voltando a coletar: %s" % _resource_filter_label(_collector_resource_filter))
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 			else:
 				return _finish(order, NPCEnums.OrderStatus.FAILED, "Coleta encerrada: armazem nao aceitou todos os recursos.")
@@ -393,13 +432,15 @@ func _validate_capability(order: NPCOrder) -> String:
 
 
 func _validate_build_target(order: NPCOrder) -> String:
-	if not is_instance_valid(order.target_node):
-		return "ASSIST_BUILD failed: target_node is invalid."
-	if bool(order.target_node.get("is_completed")):
-		return "ASSIST_BUILD failed: target construction is already complete."
-	if not order.target_node.has_method("build_step"):
+	if _is_valid_incomplete_building_site(order.target_node):
+		return ""
+	var next_site := _find_nearest_incomplete_building_site()
+	if next_site != null:
+		order.target_node = next_site
+		return ""
+	if is_instance_valid(order.target_node) and not _is_building_site(order.target_node):
 		return "ASSIST_BUILD failed: target does not accept build progress."
-	return ""
+	return "ASSIST_BUILD completed: nenhuma construcao pendente encontrada."
 
 
 func _start_garrison(order: NPCOrder) -> int:
@@ -433,6 +474,7 @@ func _reset_runtime_state() -> void:
 	_collector_state_elapsed = 0.0
 	_collector_target = null
 	_collector_warehouse = null
+	_collector_resource_filter = &""
 	_patrol_points.clear()
 	_patrol_index = 0
 	_repair_step_elapsed = 0.0
@@ -452,14 +494,29 @@ func _get_actor_inventory() -> InventoryContainer:
 	return null
 
 
-func _find_nearest_resource_pickup() -> Node3D:
+func _find_nearest_resource_pickup(resource_filter: StringName = &"") -> Node3D:
 	var root := _get_search_root()
-	return _find_nearest_node(root, Callable(self, "_is_valid_resource_pickup")) as Node3D
+	var best: Node3D = null
+	var best_distance := INF
+	for node in _flatten_nodes(root):
+		if not _is_valid_resource_pickup_for_filter(node, resource_filter):
+			continue
+		var node3d := node as Node3D
+		var distance := node3d.global_position.distance_to(_npc.global_position)
+		if distance < best_distance:
+			best = node3d
+			best_distance = distance
+	return best
 
 
 func _find_nearest_warehouse_interactable() -> Node3D:
 	var root := _get_search_root()
-	return _find_nearest_node(root, Callable(self, "_is_valid_warehouse_interactable")) as Node3D
+	return _find_nearest_node(root, Callable(self, "_is_operational_warehouse")) as Node3D
+
+
+func _find_nearest_incomplete_building_site() -> Node3D:
+	var root := _get_search_root()
+	return _find_nearest_node(root, Callable(self, "_is_valid_incomplete_building_site")) as Node3D
 
 
 func _find_nearest_node(root: Node, predicate: Callable) -> Node:
@@ -492,13 +549,30 @@ func _get_search_root() -> Node:
 
 
 func _is_valid_resource_pickup(node: Node) -> bool:
+	return _is_valid_resource_pickup_for_filter(node, &"")
+
+
+func _is_valid_resource_pickup_for_filter(node: Node, resource_filter: StringName) -> bool:
 	if not is_instance_valid(node) or not (node is Node3D):
 		return false
-	return _has_property(node, "resource_id") and _has_property(node, "amount") and node.has_method("interact") and int(node.get("amount")) > 0
+	if not (_has_property(node, "resource_id") and _has_property(node, "amount") and node.has_method("interact")):
+		return false
+	if int(node.get("amount")) <= 0:
+		return false
+	# Aplica filtro de tipo: só aceita pickup se o resource_id coincidir com o filtro ativo.
+	if resource_filter != &"":
+		return StringName(String(node.get("resource_id"))) == resource_filter
+	return true
 
 
 func _is_valid_warehouse_interactable(node: Node) -> bool:
+	return _is_operational_warehouse(node)
+
+
+func _is_operational_warehouse(node: Node) -> bool:
 	if not is_instance_valid(node) or not (node is Node3D):
+		return false
+	if _is_building_site(node):
 		return false
 	var node3d := node as Node3D
 	if not node3d.visible:
@@ -510,8 +584,42 @@ func _is_valid_warehouse_interactable(node: Node) -> bool:
 	return _has_property(node, "warehouse_path")
 
 
+func _is_incomplete_building_site(node: Node) -> bool:
+	if not is_instance_valid(node) or not (node is Node3D):
+		return false
+	# Aceita qualquer nó que suporte build_step e ainda não esteja concluído.
+	return node.has_method("build_step") and not bool(node.get("is_completed"))
+
+
 func _is_valid_repair_target(node: Node) -> bool:
 	return is_instance_valid(node) and node is Node3D and node.has_method("is_damaged") and node.has_method("repair")
+
+
+func _is_building_site(node: Node) -> bool:
+	if not is_instance_valid(node) or not (node is Node3D):
+		return false
+	return node.has_method("build_step") and _has_property(node, "is_completed")
+
+
+func _is_valid_incomplete_building_site(node: Node) -> bool:
+	if not _is_building_site(node):
+		return false
+	var node3d := node as Node3D
+	if not node3d.visible:
+		return false
+	if _is_operational_warehouse(node):
+		return false
+	return not bool(node.get("is_completed"))
+
+
+func _consume_navigation_failure() -> bool:
+	if _npc != null and _npc.has_method("consume_navigation_failure"):
+		return bool(_npc.call("consume_navigation_failure"))
+	return false
+
+
+func _resource_filter_label(resource_filter: StringName) -> String:
+	return String(resource_filter) if resource_filter != &"" else "any"
 
 
 func _has_property(node: Object, property_name: String) -> bool:
