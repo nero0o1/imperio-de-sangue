@@ -1,0 +1,53 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/npc_creation_menu.gd" id="1_creation_menu_script"]
+
+[node name="NPCCreationMenu" type="PanelContainer"]
+offset_left = 32.0
+offset_top = 260.0
+offset_right = 352.0
+offset_bottom = 456.0
+script = ExtResource("1_creation_menu_script")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Root" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="VBoxContainer" parent="MarginContainer/Root"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/Root/Header"]
+layout_mode = 2
+text = "Casa"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/Root/Header"]
+layout_mode = 2
+text = "0/3 civis"
+horizontal_alignment = 1
+
+[node name="PromptLabel" type="Label" parent="MarginContainer/Root"]
+layout_mode = 2
+text = "Quem deve sair da casa?"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Buttons" type="VBoxContainer" parent="MarginContainer/Root"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CreateCivilButton" type="Button" parent="MarginContainer/Root/Buttons"]
+layout_mode = 2
+text = "Criar Civil"
+
+[node name="CloseButton" type="Button" parent="MarginContainer/Root/Buttons"]
+layout_mode = 2
+text = "Fechar"

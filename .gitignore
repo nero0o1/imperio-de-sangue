@@ -1,0 +1,16 @@
+# Godot-specific ignores
+.godot/
+*.import
+export_presets.cfg
+*.translation
+
+# User-specified ignores
+node_modules/
+.env
+*.zip
+*.rar
+*.7z
+
+# OS-specific ignores
+.DS_Store
+Thumbs.db

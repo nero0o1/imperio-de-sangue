@@ -1,0 +1,177 @@
+[gd_scene load_steps=26 format=3]
+
+[ext_resource type="Script" path="res://scripts/test/npc_wave4_construction_stress_test.gd" id="1_test_script"]
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/ui/NPCCommandMenu.tscn" id="4_npc_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/NPCCreationMenu.tscn" id="5_creation_menu"]
+[ext_resource type="Script" path="res://scripts/inventory/player_inventory.gd" id="6_player_inventory"]
+[ext_resource type="Script" path="res://scripts/resources/resource_pickup.gd" id="7_resource_pickup"]
+[ext_resource type="Script" path="res://scripts/storage/warehouse.gd" id="8_warehouse"]
+[ext_resource type="Script" path="res://scripts/storage/warehouse_interactable.gd" id="9_warehouse_interactable"]
+[ext_resource type="Script" path="res://scripts/debug/inventory_debug_hud.gd" id="11_debug_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud/GameHUD.tscn" id="12_game_hud"]
+[ext_resource type="Script" path="res://scripts/test/build_placement_controller.gd" id="15_build_placement_controller"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/BuildableCivilHouse.tscn" id="16_buildable_civil_house"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/BuildableWarehouse.tscn" id="17_buildable_warehouse"]
+[ext_resource type="PackedScene" path="res://scenes/ui/BuildMenu.tscn" id="18_build_menu"]
+
+[sub_resource type="StandardMaterial3D" id="1_ground_material"]
+albedo_color = Color(0.16, 0.22, 0.19, 1)
+
+[sub_resource type="BoxMesh" id="2_ground_mesh"]
+size = Vector3(80, 0.2, 80)
+
+[sub_resource type="BoxShape3D" id="3_ground_shape"]
+size = Vector3(80, 0.2, 80)
+
+[sub_resource type="StandardMaterial3D" id="4_marker_material"]
+albedo_color = Color(0.43, 0.43, 0.48, 1)
+
+[sub_resource type="BoxMesh" id="5_marker_mesh"]
+size = Vector3(0.5, 0.05, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="6_wood_material"]
+albedo_color = Color(0.45, 0.26, 0.12, 1)
+
+[sub_resource type="StandardMaterial3D" id="7_stone_material"]
+albedo_color = Color(0.45, 0.48, 0.5, 1)
+
+[sub_resource type="StandardMaterial3D" id="8_warehouse_material"]
+albedo_color = Color(0.18, 0.42, 0.64, 1)
+
+[sub_resource type="BoxMesh" id="10_interactable_mesh"]
+size = Vector3(1.2, 2, 1.2)
+
+[sub_resource type="BoxShape3D" id="11_interactable_shape"]
+size = Vector3(1.2, 2, 1.2)
+
+[sub_resource type="Environment" id="12_environment"]
+background_mode = 1
+background_color = Color(0.08, 0.1, 0.12, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.65, 0.68, 0.7, 1)
+ambient_light_energy = 0.8
+
+[node name="NPCWave4ConstructionStressTest" type="Node3D"]
+script = ExtResource("1_test_script")
+move_distance = 12.0
+debug_keyboard_commands_enabled = false
+movement_bounds_min = Vector2(-36, -36)
+movement_bounds_max = Vector2(36, 36)
+stress_max_npcs = 40
+auto_spawn_npcs_on_ready = 0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("12_environment")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.353553, 0.612372, 0, 0.866025, 0.5, -0.707107, -0.353553, 0.612372, 0, 8, 0)
+light_energy = 1.4
+
+[node name="Ground" type="StaticBody3D" parent="." groups=["movement_ground"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("2_ground_mesh")
+surface_material_override/0 = SubResource("1_ground_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("3_ground_shape")
+
+[node name="MoveMarkerNorth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -32)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_material")
+
+[node name="MoveMarkerSouth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 32)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_material")
+
+[node name="MoveMarkerWest" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0.03, 0)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_material")
+
+[node name="MoveMarkerEast" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0.03, 0)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_material")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
+
+[node name="PlayerInventory" type="Node" parent="Player"]
+script = ExtResource("6_player_inventory")
+
+[node name="BuildPlacementController" type="Node3D" parent="."]
+script = ExtResource("15_build_placement_controller")
+buildable_civil_house_scene = ExtResource("16_buildable_civil_house")
+buildable_warehouse_scene = ExtResource("17_buildable_warehouse")
+player_path = NodePath("../Player")
+build_menu_path = NodePath("../BuildMenuLayer/BuildMenu")
+movement_bounds_min = Vector2(-36, -36)
+movement_bounds_max = Vector2(36, 36)
+
+[node name="WoodPickup" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 1, 18)
+script = ExtResource("7_resource_pickup")
+resource_id = "wood"
+amount = 30
+amount_per_interaction = 10
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup"]
+mesh = SubResource("10_interactable_mesh")
+surface_material_override/0 = SubResource("6_wood_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup"]
+shape = SubResource("11_interactable_shape")
+
+[node name="StonePickup" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 1, 18)
+script = ExtResource("7_resource_pickup")
+resource_id = "stone"
+amount = 10
+amount_per_interaction = 10
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StonePickup"]
+mesh = SubResource("10_interactable_mesh")
+surface_material_override/0 = SubResource("7_stone_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StonePickup"]
+shape = SubResource("11_interactable_shape")
+
+[node name="InstructionLabel" type="Label3D" parent="."]
+transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, -30, 2.2, -24)
+billboard = 1
+text = "Wave 4.4.1 Integrated Construction Test\nH abre Construir. R gira. Enter confirma. Esc cancela.\nConstrua Armazem, Casa Civil, crie civis e teste comandos."
+font_size = 28
+outline_size = 8
+
+[node name="BuildMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="BuildMenu" parent="BuildMenuLayer" instance=ExtResource("18_build_menu")]
+
+[node name="NPCCreationMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="NPCCreationMenu" parent="NPCCreationMenuLayer" instance=ExtResource("5_creation_menu")]
+
+[node name="NPCCommandMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="NPCCommandMenu" parent="NPCCommandMenuLayer" instance=ExtResource("4_npc_menu")]
+
+[node name="HUDLayer" type="CanvasLayer" parent="."]
+
+[node name="InventoryDebugHUD" type="Label" parent="HUDLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 620.0
+offset_bottom = 180.0
+script = ExtResource("11_debug_hud")
+player_inventory_path = NodePath("../../Player/PlayerInventory")
+
+[node name="GameHUD" parent="HUDLayer" instance=ExtResource("12_game_hud")]
+player_inventory_path = NodePath("../../Player/PlayerInventory")
+start_open = false

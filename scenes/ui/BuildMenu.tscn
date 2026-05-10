@@ -1,0 +1,49 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/build_menu.gd" id="1_build_menu"]
+
+[node name="BuildMenu" type="PanelContainer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -130.0
+offset_top = -108.0
+offset_right = 130.0
+offset_bottom = 108.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_build_menu")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="Root" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/Root"]
+layout_mode = 2
+text = "Construir"
+horizontal_alignment = 1
+
+[node name="Buttons" type="VBoxContainer" parent="MarginContainer/Root"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="WarehouseButton" type="Button" parent="MarginContainer/Root/Buttons"]
+layout_mode = 2
+text = "Armazém"
+
+[node name="CivilHouseButton" type="Button" parent="MarginContainer/Root/Buttons"]
+layout_mode = 2
+text = "Casa Civil"
+
+[node name="CloseButton" type="Button" parent="MarginContainer/Root/Buttons"]
+layout_mode = 2
+text = "Fechar"

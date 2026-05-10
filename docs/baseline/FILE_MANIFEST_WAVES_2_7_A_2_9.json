@@ -1,0 +1,178 @@
+{
+  "baseline_id": "waves_2_7_to_2_9",
+  "status": "accepted",
+  "date": "2026-05-03",
+  "godot_target": "4.6.2",
+  "main_project_scene": "res://scenes/main/Main.tscn",
+  "main_test_scene": "res://scenes/test/TestInventoryWarehouse.tscn",
+  "critical_files": [
+    {
+      "path": "res://project.godot",
+      "role": "Godot project configuration and Input Map",
+      "sha256": "15019B8193C4D7805447A020244F7E7304E9E00002F61D808CC2769066B94CEC"
+    },
+    {
+      "path": "res://scenes/test/TestInventoryWarehouse.tscn",
+      "role": "Main laboratory scene for inventory, warehouse and building validation",
+      "sha256": "DC191145A23E47CFD7A0EA25446E6D97C391BE111C12AC06E84122E3AABA1736"
+    },
+    {
+      "path": "res://scripts/player/player.gd",
+      "role": "FPS player movement, camera, jump, sprint, attack stub and inventory accessor",
+      "sha256": "9E9ABD13314D7A2538095617BF0FFA887E2B64BEA0BE6073D6518CE4280DEC9A"
+    },
+    {
+      "path": "res://scripts/player/interaction_raycast.gd",
+      "role": "Generic RayCast interaction adapter calling interact(actor)",
+      "sha256": "59F6698F2E115F60A2C09D9B1230C799BCE9900FE9C3A8E0B2D6153EB537C119"
+    },
+    {
+      "path": "res://scripts/inventory/item_definition.gd",
+      "role": "Item metadata resource",
+      "sha256": "43D5DA0DCD465CB92A8ED6EF556E33E180B85AB36E70C6D132917A27D201F49C"
+    },
+    {
+      "path": "res://scripts/inventory/item_stack.gd",
+      "role": "Item stack resource",
+      "sha256": "38156294EF9C8D98C3ABC831C40869EE48C34AF9B3EE7856AC9E3C03F73308C4"
+    },
+    {
+      "path": "res://scripts/inventory/inventory_container.gd",
+      "role": "Core inventory container and item operations",
+      "sha256": "E9BC4627CEC2CF625886074E5AF63F2934F918470371519815AB357E8CD1BA6F"
+    },
+    {
+      "path": "res://scripts/inventory/player_inventory.gd",
+      "role": "Player inventory specialization",
+      "sha256": "F06888DCBC651B3837F0A6DFDD6F589DF28F3230D0B754D93F917B873A7A0688"
+    },
+    {
+      "path": "res://scripts/inventory/npc_inventory.gd",
+      "role": "NPC inventory specialization for future waves",
+      "sha256": "D4D973595B8E7BA32AC98D3D420B42472E0438E8C01D08DA6AFA60A721943D58"
+    },
+    {
+      "path": "res://scripts/resources/resource_pickup.gd",
+      "role": "Collectible resource interaction",
+      "sha256": "ABAFA116C6BE203E0570D464AB240CE2857932B172B1721F5180CA79FEE12AF2"
+    },
+    {
+      "path": "res://scripts/storage/warehouse.gd",
+      "role": "Warehouse domain state and payments",
+      "sha256": "0839254D12977D2D26F6CAAF621EF443E8D1685F896188ED3184550284AFEDED"
+    },
+    {
+      "path": "res://scripts/storage/warehouse_interactable.gd",
+      "role": "Physical deposit interaction for Warehouse",
+      "sha256": "4FEDFEB0789B0CD053628A03E4A02F04C9906E5B24BFC83F9F371FD8D330A1E4"
+    },
+    {
+      "path": "res://scripts/storage/storage_manager.gd",
+      "role": "Warehouse registry and settlement-level storage helper",
+      "sha256": "4F8A38D40E8A23598DD0C2C5F23D5050E01F094D47443CE3945F6C9A6E476331"
+    },
+    {
+      "path": "res://scripts/building/build_cost.gd",
+      "role": "Build cost resource",
+      "sha256": "D3F83525E8145211CDAC9F77E0776EE85C962335DF1FC000C6BBF8530DEF396F"
+    },
+    {
+      "path": "res://scripts/building/building_resource_consumer.gd",
+      "role": "Building resource consumption policies",
+      "sha256": "523061F779B95CDDE1FEDBE7597086EFE70C3007D39B37976E4D205838E6C975"
+    },
+    {
+      "path": "res://scripts/building/building_site.gd",
+      "role": "Interactable build site and construction progress",
+      "sha256": "6B95E68E15D38BD149EC16C3A992C45DEE4AB8D52A5DC3D78A7B1F2D7BBC6AA5"
+    },
+    {
+      "path": "res://scripts/debug/domain_event_logger.gd",
+      "role": "Structured domain event logger",
+      "sha256": "191A7247BDFB66860CF12DF5ACFA5F0B089F8F8152CA77315C9F76D401128CDD"
+    },
+    {
+      "path": "res://scripts/debug/inventory_debug_hud.gd",
+      "role": "Simple debug HUD for inventory, warehouse and building state",
+      "sha256": "78C1B0AB28927345B0FFB7400C3DF3BE52B61982325AA6D9A04A9AF41F146F36"
+    },
+    {
+      "path": "res://scripts/tests/inventory_system_test.gd",
+      "role": "Inventory, warehouse, building and observability tests",
+      "sha256": "DADF8868D086772D7DAF3B37AE188285A9A10480D2E10021FF1589AFF8317360"
+    },
+    {
+      "path": "res://scripts/tests/semantic_integrity_probe.gd",
+      "role": "Semantic integrity probe for before/after/delta validation",
+      "sha256": "D36C4B29E2B6F0919DB6A3757EB3DE2F004A7D4D1E95277987FACB489DDAE76A"
+    },
+    {
+      "path": "res://docs/adr/ADR-0001-wave-2-8-governanca-observabilidade.md",
+      "role": "ADR for Wave 2.8 observability and governance",
+      "sha256": "C4E23D7D3472D36C41FD50AE0052F9F65184376EBFB9468E3307C5255C2F6001"
+    }
+  ],
+  "expected_scene_nodes": [
+    "Player",
+    "Player/PlayerInventory",
+    "ResourcePickup_Wood",
+    "ResourcePickup_Wood_2",
+    "ResourcePickup_Stone",
+    "Warehouse_Test",
+    "WarehouseInteractable_Test",
+    "BuildingSite_Test",
+    "CanvasLayer/InventoryDebugHUD"
+  ],
+  "detected_input_map": [
+    "move_forward=W",
+    "move_backward=S",
+    "move_left=A",
+    "move_right=D",
+    "sprint=Shift",
+    "interact=E",
+    "attack=MouseLeft",
+    "debug_start_wave=T",
+    "jump=Space"
+  ],
+  "validated_controls": [
+    "WASD movement",
+    "Mouse look",
+    "E interaction",
+    "Space jump",
+    "Shift sprint only on floor",
+    "Left mouse attack stub",
+    "Esc mouse release"
+  ],
+  "validated_flows": [
+    "ResourcePickup_Wood -> PlayerInventory wood=10",
+    "PlayerInventory wood=10 -> WarehouseInteractable_Test -> Warehouse wood=10",
+    "Warehouse wood=10 -> BuildingSite_Test -> progress +50",
+    "Second payment -> BuildingSite_Test progress 100 and is_completed=true",
+    "Completed BuildingSite blocks further consumption"
+  ],
+  "semantic_invariants": [
+    "No item count may become negative",
+    "PlayerInventory to Warehouse transfer conserves total quantity",
+    "Warehouse to BuildingSite consumption reduces Warehouse exactly by accepted cost",
+    "WAREHOUSE_ONLY must not consume from PlayerInventory",
+    "Blocked build does not mutate player inventory, warehouse inventory or build progress",
+    "Completed BuildingSite does not consume again",
+    "before + delta reconciles exactly with after"
+  ],
+  "known_limitations": [
+    "HUD is debug-only and not final UI",
+    "No NPC worker implemented",
+    "No crafting",
+    "No save/load",
+    "No economy simulation",
+    "No multiple Build Sites validated in gameplay",
+    "Manual editor validation is still required for visual/input confidence"
+  ],
+  "next_waves": [
+    "Wave 2.11 - HUD Visual Simples",
+    "Wave 2.12 - Construcao Visual por Estado",
+    "Wave 2.13 - Multiplos Build Sites",
+    "Wave 2.14 - Primeiro NPC Trabalhador"
+  ],
+  "missing_expected_files": []
+}

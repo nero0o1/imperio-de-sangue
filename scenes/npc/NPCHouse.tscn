@@ -1,0 +1,47 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/npc_house.gd" id="1_house_script"]
+[ext_resource type="PackedScene" path="res://scenes/npc/NPCBase.tscn" id="2_npc_base"]
+
+[sub_resource type="StandardMaterial3D" id="1_wall_material"]
+albedo_color = Color(0.55, 0.38, 0.24, 1)
+
+[sub_resource type="StandardMaterial3D" id="2_roof_material"]
+albedo_color = Color(0.35, 0.18, 0.14, 1)
+
+[sub_resource type="BoxMesh" id="3_house_mesh"]
+size = Vector3(2.2, 1.6, 2.0)
+
+[sub_resource type="BoxShape3D" id="4_house_shape"]
+size = Vector3(2.2, 1.6, 2.0)
+
+[sub_resource type="BoxMesh" id="5_roof_mesh"]
+size = Vector3(2.6, 0.45, 2.4)
+
+[node name="NPCHouse" type="StaticBody3D"]
+script = ExtResource("1_house_script")
+house_name = "Casa Civil"
+npc_scene = ExtResource("2_npc_base")
+max_spawned_npcs = 3
+spawn_radius = 2.4
+
+[node name="HouseMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("3_house_mesh")
+surface_material_override/0 = SubResource("1_wall_material")
+
+[node name="RoofMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.825, 0)
+mesh = SubResource("5_roof_mesh")
+surface_material_override/0 = SubResource("2_roof_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("4_house_shape")
+
+[node name="HouseLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.35, 0)
+billboard = 1
+text = "Casa Civil"
+font_size = 26
+outline_size = 6

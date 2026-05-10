@@ -1,0 +1,74 @@
+[gd_scene load_steps=8 format=3]
+
+[sub_resource type="StandardMaterial3D" id="1_wall_material"]
+albedo_color = Color(0.35, 0.31, 0.27, 1)
+
+[sub_resource type="BoxMesh" id="2_wall_x_mesh"]
+size = Vector3(24, 2.2, 0.45)
+
+[sub_resource type="BoxShape3D" id="3_wall_x_shape"]
+size = Vector3(24, 2.2, 0.45)
+
+[sub_resource type="BoxMesh" id="4_wall_z_mesh"]
+size = Vector3(0.45, 2.2, 24)
+
+[sub_resource type="BoxShape3D" id="5_wall_z_shape"]
+size = Vector3(0.45, 2.2, 24)
+
+[sub_resource type="BoxMesh" id="6_gate_marker_mesh"]
+size = Vector3(1.2, 2.8, 0.55)
+
+[sub_resource type="StandardMaterial3D" id="7_gate_marker_material"]
+albedo_color = Color(0.55, 0.45, 0.28, 1)
+
+[node name="CenarioParedes" type="Node3D"]
+
+[node name="WallNorth" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -12)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WallNorth"]
+mesh = SubResource("2_wall_x_mesh")
+surface_material_override/0 = SubResource("1_wall_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallNorth"]
+shape = SubResource("3_wall_x_shape")
+
+[node name="WallSouth" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 12)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WallSouth"]
+mesh = SubResource("2_wall_x_mesh")
+surface_material_override/0 = SubResource("1_wall_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallSouth"]
+shape = SubResource("3_wall_x_shape")
+
+[node name="WallEast" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.1, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WallEast"]
+mesh = SubResource("4_wall_z_mesh")
+surface_material_override/0 = SubResource("1_wall_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallEast"]
+shape = SubResource("5_wall_z_shape")
+
+[node name="WallWest" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 1.1, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WallWest"]
+mesh = SubResource("4_wall_z_mesh")
+surface_material_override/0 = SubResource("1_wall_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallWest"]
+shape = SubResource("5_wall_z_shape")
+
+[node name="GateMarkerLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.2, 1.4, 11.75)
+mesh = SubResource("6_gate_marker_mesh")
+surface_material_override/0 = SubResource("7_gate_marker_material")
+
+[node name="GateMarkerRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 1.4, 11.75)
+mesh = SubResource("6_gate_marker_mesh")
+surface_material_override/0 = SubResource("7_gate_marker_material")

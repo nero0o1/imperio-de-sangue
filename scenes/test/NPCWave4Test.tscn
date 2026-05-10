@@ -1,0 +1,89 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/test/npc_wave4_test.gd" id="1_test_script"]
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/npc/NPCHouse.tscn" id="3_npc_house"]
+[ext_resource type="PackedScene" path="res://scenes/ui/NPCCommandMenu.tscn" id="4_npc_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/NPCCreationMenu.tscn" id="5_creation_menu"]
+
+[sub_resource type="StandardMaterial3D" id="1_ground_material"]
+albedo_color = Color(0.21, 0.25, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="2_ground_mesh"]
+size = Vector3(18, 0.2, 18)
+
+[sub_resource type="BoxShape3D" id="3_ground_shape"]
+size = Vector3(18, 0.2, 18)
+
+[sub_resource type="StandardMaterial3D" id="4_marker_material"]
+albedo_color = Color(0.43, 0.43, 0.48, 1)
+
+[sub_resource type="BoxMesh" id="5_marker_mesh"]
+size = Vector3(0.3, 0.05, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="6_label_material"]
+albedo_color = Color(0.93, 0.95, 0.9, 1)
+
+[sub_resource type="Environment" id="7_environment"]
+background_mode = 1
+background_color = Color(0.08, 0.1, 0.12, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.65, 0.68, 0.7, 1)
+ambient_light_energy = 0.8
+
+[node name="NPCWave4Test" type="Node3D"]
+script = ExtResource("1_test_script")
+debug_keyboard_commands_enabled = false
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("7_environment")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.353553, 0.612372, 0, 0.866025, 0.5, -0.707107, -0.353553, 0.612372, 0, 6, 0)
+light_energy = 1.4
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("2_ground_mesh")
+surface_material_override/0 = SubResource("1_ground_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("3_ground_shape")
+
+[node name="MoveMarkerA" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.03, -2)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_material")
+
+[node name="MoveMarkerB" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -2)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_material")
+
+[node name="MoveMarkerC" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.03, -2)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_material")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+
+[node name="NPCHouse" parent="." instance=ExtResource("3_npc_house")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="InstructionLabel" type="Label3D" parent="."]
+transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, -6.3, 1.8, -4.5)
+billboard = 1
+text = "Wave 4 NPC Test\nOlhe para a Casa Civil e interaja para criar civis.\nDepois interaja com o civil criado para abrir o menu de ordens."
+font_size = 28
+outline_size = 8
+
+[node name="NPCCreationMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="NPCCreationMenu" parent="NPCCreationMenuLayer" instance=ExtResource("5_creation_menu")]
+
+[node name="NPCCommandMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="NPCCommandMenu" parent="NPCCommandMenuLayer" instance=ExtResource("4_npc_menu")]

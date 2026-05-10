@@ -1,0 +1,396 @@
+[gd_scene load_steps=25 format=3]
+
+[ext_resource type="Script" path="res://scripts/test/npc_wave4_order_integration_test.gd" id="1_test_script"]
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/npc/NPCBase.tscn" id="3_npc_base"]
+[ext_resource type="PackedScene" path="res://scenes/npc/NPCHouse.tscn" id="4_npc_house"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/BuildableCivilHouse.tscn" id="5_civil_house"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/BuildableWarehouse.tscn" id="6_warehouse_building"]
+[ext_resource type="PackedScene" path="res://scenes/ui/NPCCommandMenu.tscn" id="7_npc_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/NPCCreationMenu.tscn" id="8_creation_menu"]
+[ext_resource type="Script" path="res://scripts/resources/resource_pickup.gd" id="9_pickup"]
+[ext_resource type="Script" path="res://scripts/storage/warehouse.gd" id="10_warehouse"]
+[ext_resource type="Script" path="res://scripts/storage/warehouse_interactable.gd" id="11_warehouse_interactable"]
+[ext_resource type="Script" path="res://scripts/inventory/player_inventory.gd" id="12_player_inventory"]
+[ext_resource type="Script" path="res://scripts/debug/inventory_debug_hud.gd" id="13_debug_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud/GameHUD.tscn" id="14_game_hud"]
+
+[sub_resource type="StandardMaterial3D" id="1_ground_mat"]
+albedo_color = Color(0.16, 0.22, 0.19, 1)
+
+[sub_resource type="BoxMesh" id="2_ground_mesh"]
+size = Vector3(80, 0.2, 80)
+
+[sub_resource type="BoxShape3D" id="3_ground_shape"]
+size = Vector3(80, 0.2, 80)
+
+[sub_resource type="StandardMaterial3D" id="4_marker_mat"]
+albedo_color = Color(0.43, 0.43, 0.48, 1)
+
+[sub_resource type="BoxMesh" id="5_marker_mesh"]
+size = Vector3(0.5, 0.05, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="6_wood_mat"]
+albedo_color = Color(0.45, 0.26, 0.12, 1)
+
+[sub_resource type="StandardMaterial3D" id="7_stone_mat"]
+albedo_color = Color(0.45, 0.48, 0.5, 1)
+
+[sub_resource type="StandardMaterial3D" id="8_wi_mat"]
+albedo_color = Color(0.18, 0.42, 0.64, 1)
+
+[sub_resource type="BoxMesh" id="9_pickup_mesh"]
+size = Vector3(1.2, 2, 1.2)
+
+[sub_resource type="BoxShape3D" id="10_pickup_shape"]
+size = Vector3(1.2, 2, 1.2)
+
+[sub_resource type="Environment" id="11_env"]
+background_mode = 1
+background_color = Color(0.08, 0.1, 0.12, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.65, 0.68, 0.7, 1)
+ambient_light_energy = 0.8
+
+[node name="NPCWave4OrderIntegrationTest" type="Node3D"]
+script = ExtResource("1_test_script")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("11_env")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.353553, 0.612372, 0, 0.866025, 0.5, -0.707107, -0.353553, 0.612372, 0, 8, 0)
+light_energy = 1.4
+
+[node name="Ground" type="StaticBody3D" parent="." groups=["movement_ground"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("2_ground_mesh")
+surface_material_override/0 = SubResource("1_ground_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("3_ground_shape")
+
+[node name="MarkerNorth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -32)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_mat")
+
+[node name="MarkerSouth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 32)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_mat")
+
+[node name="MarkerWest" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0.03, 0)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_mat")
+
+[node name="MarkerEast" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0.03, 0)
+mesh = SubResource("5_marker_mesh")
+surface_material_override/0 = SubResource("4_marker_mat")
+
+[node name="InstructionLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 15)
+billboard = 1
+text = "Wave 4.5.1 — Teste de Ordens Semanticas\nOlhe para um NPC e pressione E para selecionar e abrir o menu.\nCaixa azul escura = Armazem interagivel. Caixas marrons = Madeira. Cinzas = Pedra."
+font_size = 28
+outline_size = 8
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
+
+[node name="PlayerInventory" type="Node" parent="Player"]
+script = ExtResource("12_player_inventory")
+
+[node name="Warehouse" type="Node" parent="."]
+script = ExtResource("10_warehouse")
+
+[node name="WarehouseInteractable" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 1, 0)
+script = ExtResource("11_warehouse_interactable")
+warehouse_path = NodePath("../Warehouse")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WarehouseInteractable"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("8_wi_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WarehouseInteractable"]
+shape = SubResource("10_pickup_shape")
+
+[node name="NPC1" parent="." instance=ExtResource("3_npc_base")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 5)
+
+[node name="NPC2" parent="." instance=ExtResource("3_npc_base")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+
+[node name="NPC3" parent="." instance=ExtResource("3_npc_base")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 5)
+
+[node name="NPCHouse" parent="." instance=ExtResource("4_npc_house")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 5)
+creation_enabled = true
+max_spawned_npcs = 5
+
+[node name="CivilHouseA" parent="." instance=ExtResource("5_civil_house")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -5)
+
+[node name="BuildingSite" parent="CivilHouseA"]
+warehouse_path = NodePath("../../Warehouse")
+
+[node name="WarehouseBuilding" parent="." instance=ExtResource("6_warehouse_building")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -5)
+
+[node name="BuildingSite" parent="WarehouseBuilding"]
+warehouse_path = NodePath("../../Warehouse")
+consume_policy = 3
+
+[node name="WoodPickup1" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 1, 8)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup1"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup1"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup2" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1, 8)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup2"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup2"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup3" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 8)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup3"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup3"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup4" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 8)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup4"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup4"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup5" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1, 8)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup5"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup5"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup6" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 1, 2)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup6"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup6"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup7" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1, 2)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup7"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup7"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup8" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 1, -12)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup8"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup8"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup9" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -12)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup9"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup9"]
+shape = SubResource("10_pickup_shape")
+
+[node name="WoodPickup10" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -12)
+script = ExtResource("9_pickup")
+resource_id = "wood"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup10"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("6_wood_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup10"]
+shape = SubResource("10_pickup_shape")
+
+[node name="StonePickup1" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1, -6)
+script = ExtResource("9_pickup")
+resource_id = "stone"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StonePickup1"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("7_stone_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StonePickup1"]
+shape = SubResource("10_pickup_shape")
+
+[node name="StonePickup2" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -6)
+script = ExtResource("9_pickup")
+resource_id = "stone"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StonePickup2"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("7_stone_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StonePickup2"]
+shape = SubResource("10_pickup_shape")
+
+[node name="StonePickup3" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, -6)
+script = ExtResource("9_pickup")
+resource_id = "stone"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StonePickup3"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("7_stone_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StonePickup3"]
+shape = SubResource("10_pickup_shape")
+
+[node name="StonePickup4" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 1, -6)
+script = ExtResource("9_pickup")
+resource_id = "stone"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StonePickup4"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("7_stone_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StonePickup4"]
+shape = SubResource("10_pickup_shape")
+
+[node name="StonePickup5" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 1, -6)
+script = ExtResource("9_pickup")
+resource_id = "stone"
+amount = 20
+amount_per_interaction = 5
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StonePickup5"]
+mesh = SubResource("9_pickup_mesh")
+surface_material_override/0 = SubResource("7_stone_mat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StonePickup5"]
+shape = SubResource("10_pickup_shape")
+
+[node name="NPCCreationMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="NPCCreationMenu" parent="NPCCreationMenuLayer" instance=ExtResource("8_creation_menu")]
+
+[node name="NPCCommandMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="NPCCommandMenu" parent="NPCCommandMenuLayer" instance=ExtResource("7_npc_menu")]
+
+[node name="HUDLayer" type="CanvasLayer" parent="."]
+
+[node name="InventoryDebugHUD" type="Label" parent="HUDLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 620.0
+offset_bottom = 180.0
+script = ExtResource("13_debug_hud")
+player_inventory_path = NodePath("../../Player/PlayerInventory")
+
+[node name="GameHUD" parent="HUDLayer" instance=ExtResource("14_game_hud")]
+player_inventory_path = NodePath("../../Player/PlayerInventory")
+warehouse_path = NodePath("../../Warehouse")
+start_open = false

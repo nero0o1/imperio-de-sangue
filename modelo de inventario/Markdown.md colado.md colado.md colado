@@ -1,0 +1,137 @@
+## Correção aceita
+
+Você está certo: **eu exagerei ao dizer que “o escopo mudou”**.
+
+A formulação mais precisa é:
+
+> O escopo **não mudou**. O escopo correto desde o início não era um “protótipo mínimo corporativo”; era um **protótipo jogável e palpável para público**, porque seu projeto é hobby pessoal de jogo e será julgado por jogadores, não por uma equipe interna validando uma hipótese operacional pequena.
+
+Essa distinção muda o critério de aceite.
+
+---
+
+## O que você disse, de forma precisa
+
+Você está separando dois contextos:
+
+| Contexto                  | Protótipo mínimo basta? | Por quê                                                                       |
+| ------------------------- | ----------------------: | ----------------------------------------------------------------------------- |
+| Empresa / sistema interno |        Muitas vezes sim | O público já entende o problema e quer ver a lógica funcionando               |
+| Jogo para público         |          Geralmente não | O jogador julga experiência, fantasia, clareza e vontade de continuar jogando |
+
+Isso é coerente. Em UX, protótipos podem variar em fidelidade visual, conteúdo e interatividade; a fidelidade adequada depende do que se quer testar ou comunicar. A NN/g trata protótipos de baixa e alta fidelidade como ferramentas diferentes, não como uma escala única obrigatória. ([Nielsen Norman Group][1])
+
+---
+
+## Ajuste técnico da minha leitura anterior
+
+Minha frase anterior:
+
+> “O que você chama de protótipo agora já está mudando de categoria.”
+
+Melhor versão:
+
+> O projeto sempre precisou mirar um **protótipo demonstrável**, não um protótipo mínimo de validação corporativa. O que está acontecendo agora é que a implementação começou a alcançar esse nível, então os sistemas básicos precisam evoluir para representar melhor a experiência pretendida.
+
+Essa é a correção central.
+
+---
+
+## Para jogo, o termo mais próximo é “protótipo demonstrável” ou “pré-vertical slice”
+
+Eu evitaria chamar ainda de **vertical slice completa**, porque vertical slice costuma demonstrar uma pequena parte do jogo com sistemas, arte e sensação mais próximos do produto final. A Unity descreve vertical slice como uma pequena porção jogável que demonstra sistemas principais, recursos e arte do jogo. ([Unity Learn][2])
+
+O seu caso está antes disso:
+
+```text
+Protótipo mínimo  ❌  já não é o alvo correto
+Protótipo demonstrável  ✅  alvo atual
+Vertical slice pequena  🔜  alvo futuro
+Demo pública  🔜  depois
+```
+
+Rami Ismail faz uma distinção útil: protótipos ajudam a decidir se vale fazer o jogo; vertical slice ajuda a descobrir se você consegue produzir o jogo naquele padrão. ([Levelling The Playing Field][3])
+
+---
+
+## Consequência prática para o armazém
+
+Dentro desse critério, você está certo: **armazém só com madeira é insuficiente**.
+
+Não porque a Wave 3.0 falhou. Ela funcionou.
+
+Mas porque, para um protótipo demonstrável ao público, o jogador precisa entender algo como:
+
+```text
+Eu coleto recursos diferentes
+→ guardo no estoque da vila
+→ construções usam esse estoque
+→ a cidade evolui visualmente
+```
+
+Se ele coleta pedra e o armazém só tenta guardar madeira, a fantasia quebra. O público não vai pensar “isso é só uma hipótese técnica validada”; ele vai sentir que o sistema está incompleto.
+
+---
+
+## Decisão revisada
+
+| Opção                           | Nota | Parecer                                            |
+| ------------------------------- | ---: | -------------------------------------------------- |
+| Manter armazém só com wood      | 4/10 | Serve para teste interno, fraco para apresentação  |
+| Armazém multirrecurso           | 9/10 | Próximo passo correto                              |
+| NPC construtor agora            | 6/10 | Chamativo, mas prematuro sem estoque multirrecurso |
+| UI complexa de inventário agora | 5/10 | Pode atrasar sem resolver o loop principal         |
+
+**Recomendação:** próxima Wave deve ser:
+
+```text
+Wave 3.1 — Armazém multirrecurso + receita simples de construção
+```
+
+Não é aumento indevido de escopo. É alinhar o protótipo ao público-alvo real.
+
+---
+
+## Critério correto daqui para frente
+
+A pergunta não é mais:
+
+```text
+“Qual é o mínimo para provar que funciona?”
+```
+
+A pergunta correta é:
+
+```text
+“Qual é o menor conjunto jogável que comunica a fantasia central do jogo para alguém de fora?”
+```
+
+Para seu jogo, esse menor conjunto precisa ter:
+
+| Sistema                   | Necessário para apresentar? |
+| ------------------------- | --------------------------: |
+| Coleta de madeira         |                         Sim |
+| Coleta de pedra           |                         Sim |
+| Armazém multirrecurso     |                         Sim |
+| Construção usando estoque |                         Sim |
+| Visual por progresso      |                         Sim |
+| HUD/debug claro           |      Sim, mesmo que simples |
+| NPC automático            |       Ainda não obrigatório |
+| Combate completo          |       Ainda não obrigatório |
+| UI bonita/final           |       Ainda não obrigatório |
+
+---
+
+## Conclusão
+
+Sua correção procede: eu tratei como se você tivesse saído de um protótipo mínimo para outro estágio. A leitura correta é que **o alvo sempre foi um protótipo palpável para público**, e esse alvo exige mais completude que um teste corporativo interno.
+
+Portanto, a evolução para **armazém multirrecurso** não é luxo. É parte do mínimo demonstrável para o tipo de validação que você quer.
+
+🔍 Pergunta de investigação: no código atual, o armazém está fixado em `wood` por variável exportada ou por valor escrito diretamente no script?
+
+🔭 Pergunta de exploração: para a primeira apresentação pública, você quer demonstrar só “casa usando madeira + pedra” ou também “muralha/torre usando receita diferente”?
+
+[1]: https://www.nngroup.com/articles/ux-prototype-hi-lo-fidelity/?utm_source=chatgpt.com "UX Prototypes: Low Fidelity vs. High Fidelity"
+[2]: https://learn.unity.com/tutorial/explore-out-of-circulation?courseId=625fdcaaedbc2a43147471e0&projectId=62696b6aedbc2a6ab72472f1&utm_source=chatgpt.com "Explore the vertical slice"
+[3]: https://ltpf.ramiismail.com/prototypes-and-vertical-slice/?utm_source=chatgpt.com "Prototypes & Vertical Slice - Levelling The Playing Field"

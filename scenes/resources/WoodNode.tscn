@@ -1,0 +1,22 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/wood_node.gd" id="1_wood_node"]
+
+[sub_resource type="StandardMaterial3D" id="1_material"]
+albedo_color = Color(0.45, 0.25, 0.12, 1)
+
+[sub_resource type="BoxMesh" id="2_mesh"]
+size = Vector3(1, 2, 1)
+
+[sub_resource type="BoxShape3D" id="3_shape"]
+size = Vector3(1, 2, 1)
+
+[node name="WoodNode" type="StaticBody3D"]
+script = ExtResource("1_wood_node")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("2_mesh")
+surface_material_override/0 = SubResource("1_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("3_shape")

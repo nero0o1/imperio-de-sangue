@@ -1,0 +1,140 @@
+[gd_scene load_steps=15 format=3]
+
+[ext_resource type="Script" path="res://scripts/building/building_visual_state.gd" id="1_visual_state"]
+
+[sub_resource type="StandardMaterial3D" id="1_foundation_material"]
+albedo_color = Color(0.42, 0.38, 0.34, 1)
+
+[sub_resource type="StandardMaterial3D" id="2_under_construction_material"]
+albedo_color = Color(0.73, 0.52, 0.22, 1)
+
+[sub_resource type="StandardMaterial3D" id="3_completed_material"]
+albedo_color = Color(0.62, 0.67, 0.72, 1)
+
+[sub_resource type="StandardMaterial3D" id="4_roof_material"]
+albedo_color = Color(0.36, 0.18, 0.14, 1)
+
+[sub_resource type="StandardMaterial3D" id="5_label_material"]
+albedo_color = Color(1, 0.93, 0.68, 1)
+
+[sub_resource type="BoxMesh" id="6_foundation_slab_mesh"]
+size = Vector3(2.8, 0.18, 2.8)
+
+[sub_resource type="BoxMesh" id="7_foundation_edge_x_mesh"]
+size = Vector3(2.8, 0.35, 0.18)
+
+[sub_resource type="BoxMesh" id="8_foundation_edge_z_mesh"]
+size = Vector3(0.18, 0.35, 2.8)
+
+[sub_resource type="BoxMesh" id="9_frame_post_mesh"]
+size = Vector3(0.22, 1.7, 0.22)
+
+[sub_resource type="BoxMesh" id="10_frame_beam_x_mesh"]
+size = Vector3(2.8, 0.22, 0.22)
+
+[sub_resource type="BoxMesh" id="11_frame_beam_z_mesh"]
+size = Vector3(0.22, 0.22, 2.8)
+
+[sub_resource type="BoxMesh" id="12_completed_body_mesh"]
+size = Vector3(2.6, 2.2, 2.6)
+
+[sub_resource type="PrismMesh" id="13_roof_mesh"]
+size = Vector3(3, 0.85, 3)
+
+[node name="BuildingVisualState" type="Node3D"]
+script = ExtResource("1_visual_state")
+
+[node name="FoundationVisual" type="Node3D" parent="."]
+
+[node name="Slab" type="MeshInstance3D" parent="FoundationVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.78, 0)
+mesh = SubResource("6_foundation_slab_mesh")
+surface_material_override/0 = SubResource("1_foundation_material")
+
+[node name="NorthEdge" type="MeshInstance3D" parent="FoundationVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.52, -1.31)
+mesh = SubResource("7_foundation_edge_x_mesh")
+surface_material_override/0 = SubResource("1_foundation_material")
+
+[node name="SouthEdge" type="MeshInstance3D" parent="FoundationVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.52, 1.31)
+mesh = SubResource("7_foundation_edge_x_mesh")
+surface_material_override/0 = SubResource("1_foundation_material")
+
+[node name="EastEdge" type="MeshInstance3D" parent="FoundationVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.31, -0.52, 0)
+mesh = SubResource("8_foundation_edge_z_mesh")
+surface_material_override/0 = SubResource("1_foundation_material")
+
+[node name="WestEdge" type="MeshInstance3D" parent="FoundationVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.31, -0.52, 0)
+mesh = SubResource("8_foundation_edge_z_mesh")
+surface_material_override/0 = SubResource("1_foundation_material")
+
+[node name="UnderConstructionVisual" type="Node3D" parent="."]
+visible = false
+
+[node name="Slab" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.78, 0)
+mesh = SubResource("6_foundation_slab_mesh")
+surface_material_override/0 = SubResource("1_foundation_material")
+
+[node name="PostNW" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.15, -1.2)
+mesh = SubResource("9_frame_post_mesh")
+surface_material_override/0 = SubResource("2_under_construction_material")
+
+[node name="PostNE" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.15, -1.2)
+mesh = SubResource("9_frame_post_mesh")
+surface_material_override/0 = SubResource("2_under_construction_material")
+
+[node name="PostSW" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.15, 1.2)
+mesh = SubResource("9_frame_post_mesh")
+surface_material_override/0 = SubResource("2_under_construction_material")
+
+[node name="PostSE" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.15, 1.2)
+mesh = SubResource("9_frame_post_mesh")
+surface_material_override/0 = SubResource("2_under_construction_material")
+
+[node name="BeamNorth" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -1.2)
+mesh = SubResource("10_frame_beam_x_mesh")
+surface_material_override/0 = SubResource("2_under_construction_material")
+
+[node name="BeamSouth" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 1.2)
+mesh = SubResource("10_frame_beam_x_mesh")
+surface_material_override/0 = SubResource("2_under_construction_material")
+
+[node name="BeamEast" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 1.1, 0)
+mesh = SubResource("11_frame_beam_z_mesh")
+surface_material_override/0 = SubResource("2_under_construction_material")
+
+[node name="BeamWest" type="MeshInstance3D" parent="UnderConstructionVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 1.1, 0)
+mesh = SubResource("11_frame_beam_z_mesh")
+surface_material_override/0 = SubResource("2_under_construction_material")
+
+[node name="CompletedVisual" type="Node3D" parent="."]
+visible = false
+
+[node name="Body" type="MeshInstance3D" parent="CompletedVisual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
+mesh = SubResource("12_completed_body_mesh")
+surface_material_override/0 = SubResource("3_completed_material")
+
+[node name="Roof" type="MeshInstance3D" parent="CompletedVisual"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0, 1.65, 0)
+mesh = SubResource("13_roof_mesh")
+surface_material_override/0 = SubResource("4_roof_material")
+
+[node name="StatusLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.965926, -0.258819, 0, 0.258819, 0.965926, 0, 2.7, 0)
+material_override = SubResource("5_label_material")
+text = "0%"
+font_size = 64
+billboard = 1

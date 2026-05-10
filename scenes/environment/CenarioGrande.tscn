@@ -1,0 +1,67 @@
+[gd_scene load_steps=9 format=3]
+
+[sub_resource type="StandardMaterial3D" id="1_ground_material"]
+albedo_color = Color(0.2, 0.26, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="2_ground_mesh"]
+size = Vector3(34, 0.16, 34)
+
+[sub_resource type="BoxShape3D" id="3_ground_shape"]
+size = Vector3(34, 0.16, 34)
+
+[sub_resource type="StandardMaterial3D" id="4_path_material"]
+albedo_color = Color(0.46, 0.42, 0.34, 1)
+
+[sub_resource type="BoxMesh" id="5_path_x_mesh"]
+size = Vector3(18, 0.04, 1.8)
+
+[sub_resource type="BoxMesh" id="6_path_z_mesh"]
+size = Vector3(1.8, 0.04, 18)
+
+[sub_resource type="BoxMesh" id="7_marker_mesh"]
+size = Vector3(0.35, 1.2, 0.35)
+
+[sub_resource type="StandardMaterial3D" id="8_marker_material"]
+albedo_color = Color(0.28, 0.38, 0.5, 1)
+
+[node name="CenarioGrande" type="Node3D"]
+
+[node name="GroundLarge" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.08, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="GroundLarge"]
+mesh = SubResource("2_ground_mesh")
+surface_material_override/0 = SubResource("1_ground_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundLarge"]
+shape = SubResource("3_ground_shape")
+
+[node name="PathEastWest" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.025, -2)
+mesh = SubResource("5_path_x_mesh")
+surface_material_override/0 = SubResource("4_path_material")
+
+[node name="PathNorthSouth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.03, 0)
+mesh = SubResource("6_path_z_mesh")
+surface_material_override/0 = SubResource("4_path_material")
+
+[node name="MarkerNW" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.6, -8)
+mesh = SubResource("7_marker_mesh")
+surface_material_override/0 = SubResource("8_marker_material")
+
+[node name="MarkerNE" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.6, -8)
+mesh = SubResource("7_marker_mesh")
+surface_material_override/0 = SubResource("8_marker_material")
+
+[node name="MarkerSW" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.6, 8)
+mesh = SubResource("7_marker_mesh")
+surface_material_override/0 = SubResource("8_marker_material")
+
+[node name="MarkerSE" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.6, 8)
+mesh = SubResource("7_marker_mesh")
+surface_material_override/0 = SubResource("8_marker_material")

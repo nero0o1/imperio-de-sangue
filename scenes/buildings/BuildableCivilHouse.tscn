@@ -1,0 +1,48 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/building/building_site.gd" id="1_building_site"]
+[ext_resource type="PackedScene" path="res://scenes/npc/NPCHouse.tscn" id="2_npc_house"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/BuildingVisualState.tscn" id="3_visual_state"]
+[ext_resource type="Script" path="res://scripts/test/buildable_civil_house_controller.gd" id="4_controller"]
+
+[sub_resource type="StandardMaterial3D" id="1_building_material"]
+albedo_color = Color(0.68, 0.48, 0.22, 1)
+
+[sub_resource type="BoxMesh" id="2_interactable_mesh"]
+size = Vector3(1.2, 2, 1.2)
+
+[sub_resource type="BoxShape3D" id="3_interactable_shape"]
+size = Vector3(1.2, 2, 1.2)
+
+[node name="BuildableCivilHouse" type="Node3D"]
+
+[node name="BuildingSite" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+script = ExtResource("1_building_site")
+building_id = &"civil_house"
+required_resources = { &"wood": 20, &"stone": 10 }
+step_count = 2
+consume_policy = 3
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="BuildingSite"]
+visible = false
+mesh = SubResource("2_interactable_mesh")
+surface_material_override/0 = SubResource("1_building_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BuildingSite"]
+shape = SubResource("3_interactable_shape")
+
+[node name="NPCHouse" parent="." instance=ExtResource("2_npc_house")]
+visible = false
+creation_enabled = false
+max_spawned_npcs = 40
+spawn_radius = 8.0
+
+[node name="BuildingVisualState" parent="." instance=ExtResource("3_visual_state")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+building_site_path = NodePath("../BuildingSite")
+
+[node name="BuildableCivilHouseController" type="Node" parent="."]
+script = ExtResource("4_controller")
+building_site_path = NodePath("../BuildingSite")
+npc_house_path = NodePath("../NPCHouse")

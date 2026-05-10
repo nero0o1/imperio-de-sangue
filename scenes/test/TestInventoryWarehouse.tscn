@@ -1,0 +1,151 @@
+[gd_scene load_steps=21 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="1_player"]
+[ext_resource type="Script" path="res://scripts/inventory/player_inventory.gd" id="2_player_inventory"]
+[ext_resource type="Script" path="res://scripts/resources/resource_pickup.gd" id="3_resource_pickup"]
+[ext_resource type="Script" path="res://scripts/storage/warehouse.gd" id="4_warehouse"]
+[ext_resource type="Script" path="res://scripts/storage/warehouse_interactable.gd" id="5_warehouse_interactable"]
+[ext_resource type="Script" path="res://scripts/building/building_site.gd" id="6_building_site"]
+[ext_resource type="Script" path="res://scripts/debug/inventory_debug_hud.gd" id="7_debug_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud/GameHUD.tscn" id="8_game_hud"]
+[ext_resource type="PackedScene" path="res://scenes/environment/CenarioGrande.tscn" id="9_cenario_grande"]
+[ext_resource type="PackedScene" path="res://scenes/environment/CenarioParedes.tscn" id="10_cenario_paredes"]
+[ext_resource type="PackedScene" path="res://scenes/buildings/BuildingVisualState.tscn" id="11_building_visual_state"]
+
+[sub_resource type="StandardMaterial3D" id="1_ground_material"]
+albedo_color = Color(0.18, 0.22, 0.18, 1)
+
+[sub_resource type="BoxMesh" id="2_ground_mesh"]
+size = Vector3(20, 0.2, 20)
+
+[sub_resource type="BoxShape3D" id="3_ground_shape"]
+size = Vector3(20, 0.2, 20)
+
+[sub_resource type="StandardMaterial3D" id="4_wood_material"]
+albedo_color = Color(0.45, 0.26, 0.12, 1)
+
+[sub_resource type="StandardMaterial3D" id="5_stone_material"]
+albedo_color = Color(0.45, 0.48, 0.5, 1)
+
+[sub_resource type="StandardMaterial3D" id="6_warehouse_material"]
+albedo_color = Color(0.18, 0.42, 0.64, 1)
+
+[sub_resource type="StandardMaterial3D" id="7_building_material"]
+albedo_color = Color(0.68, 0.48, 0.22, 1)
+
+[sub_resource type="BoxMesh" id="8_interactable_mesh"]
+size = Vector3(1.2, 2, 1.2)
+
+[sub_resource type="BoxShape3D" id="9_interactable_shape"]
+size = Vector3(1.2, 2, 1.2)
+
+[node name="TestInventoryWarehouse" type="Node3D"]
+
+[node name="CenarioGrande" parent="." instance=ExtResource("9_cenario_grande")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.04, 0)
+
+[node name="CenarioParedes" parent="." instance=ExtResource("10_cenario_paredes")]
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("2_ground_mesh")
+surface_material_override/0 = SubResource("1_ground_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("3_ground_shape")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 5, 0)
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+
+[node name="PlayerInventory" type="Node" parent="Player"]
+script = ExtResource("2_player_inventory")
+
+[node name="WoodPickup" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1, 1.5)
+script = ExtResource("3_resource_pickup")
+resource_id = "wood"
+amount = 30
+amount_per_interaction = 10
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WoodPickup"]
+mesh = SubResource("8_interactable_mesh")
+surface_material_override/0 = SubResource("4_wood_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WoodPickup"]
+shape = SubResource("9_interactable_shape")
+
+[node name="StonePickup" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 1, 1.5)
+script = ExtResource("3_resource_pickup")
+resource_id = "stone"
+amount = 10
+amount_per_interaction = 10
+remove_when_depleted = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StonePickup"]
+mesh = SubResource("8_interactable_mesh")
+surface_material_override/0 = SubResource("5_stone_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StonePickup"]
+shape = SubResource("9_interactable_shape")
+
+[node name="Warehouse_Test" type="Node" parent="."]
+script = ExtResource("4_warehouse")
+warehouse_id = &"warehouse_test"
+settlement_id = &"settlement_test"
+
+[node name="WarehouseInteractable_Test" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1, -2)
+script = ExtResource("5_warehouse_interactable")
+warehouse_path = NodePath("../Warehouse_Test")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="WarehouseInteractable_Test"]
+mesh = SubResource("8_interactable_mesh")
+surface_material_override/0 = SubResource("6_warehouse_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WarehouseInteractable_Test"]
+shape = SubResource("9_interactable_shape")
+
+[node name="BuildingSite_Test" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 1, -2)
+script = ExtResource("6_building_site")
+building_id = &"test_building"
+required_resources = { &"wood": 20, &"stone": 10 }
+warehouse_path = NodePath("../Warehouse_Test")
+step_count = 2
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="BuildingSite_Test"]
+visible = false
+mesh = SubResource("8_interactable_mesh")
+surface_material_override/0 = SubResource("7_building_material")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BuildingSite_Test"]
+shape = SubResource("9_interactable_shape")
+
+[node name="BuildingVisualState_Test" parent="." instance=ExtResource("11_building_visual_state")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 1, -2)
+building_site_path = NodePath("../BuildingSite_Test")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="InventoryDebugHUD" type="Label" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 620.0
+offset_bottom = 180.0
+script = ExtResource("7_debug_hud")
+player_inventory_path = NodePath("../../Player/PlayerInventory")
+warehouse_path = NodePath("../../Warehouse_Test")
+building_site_path = NodePath("../../BuildingSite_Test")
+
+[node name="GameHUD" parent="CanvasLayer" instance=ExtResource("8_game_hud")]
+player_inventory_path = NodePath("../../Player/PlayerInventory")
+warehouse_path = NodePath("../../Warehouse_Test")
+building_site_path = NodePath("../../BuildingSite_Test")
+start_open = false

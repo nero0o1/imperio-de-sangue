@@ -1,0 +1,57 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/npc/npc_base.gd" id="1_npc_base"]
+
+[sub_resource type="CapsuleShape3D" id="1_capsule_shape"]
+radius = 0.35
+height = 1.6
+
+[sub_resource type="StandardMaterial3D" id="2_body_material"]
+albedo_color = Color(0.27, 0.54, 0.42, 1)
+
+[sub_resource type="CapsuleMesh" id="3_body_mesh"]
+radius = 0.35
+height = 1.6
+
+[sub_resource type="StandardMaterial3D" id="4_indicator_material"]
+albedo_color = Color(0.95, 0.85, 0.18, 1)
+emission_enabled = true
+emission = Color(0.95, 0.75, 0.12, 1)
+emission_energy_multiplier = 0.35
+
+[sub_resource type="CylinderMesh" id="5_indicator_mesh"]
+top_radius = 0.62
+bottom_radius = 0.62
+height = 0.03
+
+[sub_resource type="StandardMaterial3D" id="6_label_material"]
+albedo_color = Color(0.96, 0.96, 0.9, 1)
+
+[node name="NPCBase" type="CharacterBody3D"]
+script = ExtResource("1_npc_base")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+shape = SubResource("1_capsule_shape")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("3_body_mesh")
+surface_material_override/0 = SubResource("2_body_material")
+
+[node name="SelectionIndicator" type="MeshInstance3D" parent="."]
+visible = false
+mesh = SubResource("5_indicator_mesh")
+surface_material_override/0 = SubResource("4_indicator_material")
+
+[node name="NameLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, 0)
+billboard = 1
+text = "Civil NPC"
+font_size = 32
+modulate = Color(1, 1, 1, 1)
+outline_size = 8
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+path_desired_distance = 0.25
+target_desired_distance = 0.25
