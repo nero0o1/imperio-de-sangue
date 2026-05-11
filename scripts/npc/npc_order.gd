@@ -47,7 +47,7 @@ func is_valid() -> bool:
 		NPCEnums.OrderType.FOLLOW_TARGET, NPCEnums.OrderType.FOLLOW_PLAYER:
 			return is_instance_valid(target_node)
 		NPCEnums.OrderType.ASSIST_BUILD:
-			return is_instance_valid(target_node)
+			return true
 		NPCEnums.OrderType.STOP, NPCEnums.OrderType.HOLD_POSITION, NPCEnums.OrderType.CLEAR_QUEUE:
 			return true
 		NPCEnums.OrderType.PATROL:

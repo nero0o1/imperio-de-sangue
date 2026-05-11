@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3]
+[gd_scene load_steps=29 format=3]
 
 [ext_resource type="Script" path="res://scripts/test/npc_wave4_order_integration_test.gd" id="1_test_script"]
 [ext_resource type="PackedScene" path="res://scenes/player/Player.tscn" id="2_player"]
@@ -15,6 +15,8 @@
 [ext_resource type="Script" path="res://scripts/debug/inventory_debug_hud.gd" id="13_debug_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud/GameHUD.tscn" id="14_game_hud"]
 [ext_resource type="Script" path="res://scripts/core/population_manager.gd" id="15_population_manager"]
+[ext_resource type="Script" path="res://scripts/test/build_placement_controller.gd" id="16_build_controller"]
+[ext_resource type="PackedScene" path="res://scenes/ui/BuildMenu.tscn" id="17_build_menu"]
 
 [sub_resource type="StandardMaterial3D" id="1_ground_mat"]
 albedo_color = Color(0.16, 0.22, 0.19, 1)
@@ -53,8 +55,16 @@ ambient_light_source = 2
 ambient_light_color = Color(0.65, 0.68, 0.7, 1)
 ambient_light_energy = 0.8
 
+[sub_resource type="NavigationMesh" id="12_navigation_mesh"]
+vertices = PackedVector3Array(-38, 0, -38, 38, 0, -38, 38, 0, 38, -38, 0, 38)
+polygons = [PackedInt32Array(0, 1, 2), PackedInt32Array(0, 2, 3)]
+
 [node name="NPCWave4OrderIntegrationTest" type="Node3D"]
 script = ExtResource("1_test_script")
+initial_player_wood = 100
+initial_player_stone = 60
+debug_initial_warehouse_wood = 160
+debug_initial_warehouse_stone = 100
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("11_env")
@@ -72,6 +82,9 @@ surface_material_override/0 = SubResource("1_ground_mat")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
 shape = SubResource("3_ground_shape")
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="." groups=["navigation_region"]]
+navigation_mesh = SubResource("12_navigation_mesh")
 
 [node name="MarkerNorth" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -32)
@@ -103,10 +116,10 @@ outline_size = 8
 [node name="Player" parent="." instance=ExtResource("2_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
 
-[node name="PlayerInventory" type="Node" parent="Player"]
+[node name="PlayerInventory" type="Node" parent="Player" groups=["player_inventory"]]
 script = ExtResource("12_player_inventory")
 
-[node name="Warehouse" type="Node" parent="."]
+[node name="Warehouse" type="Node" parent="." groups=["warehouse"]]
 script = ExtResource("10_warehouse")
 
 [node name="PopulationManager" type="Node" parent="."]
@@ -115,7 +128,7 @@ base_capacity = 3
 capacity_per_house = 10
 starting_population = 3
 
-[node name="WarehouseInteractable" type="StaticBody3D" parent="."]
+[node name="WarehouseInteractable" type="StaticBody3D" parent="." groups=["warehouse_interactable"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 1, 0)
 script = ExtResource("11_warehouse_interactable")
 warehouse_path = NodePath("../Warehouse")
@@ -145,7 +158,7 @@ population_manager_path = NodePath("../PopulationManager")
 [node name="CivilHouseA" parent="." instance=ExtResource("5_civil_house")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -5)
 
-[node name="BuildingSite" parent="CivilHouseA"]
+[node name="BuildingSite" parent="CivilHouseA" groups=["building_site"]]
 warehouse_path = NodePath("../../Warehouse")
 
 [node name="NPCHouse" parent="CivilHouseA"]
@@ -154,7 +167,7 @@ population_manager_path = NodePath("../../PopulationManager")
 [node name="WarehouseBuilding" parent="." instance=ExtResource("6_warehouse_building")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -5)
 
-[node name="BuildingSite" parent="WarehouseBuilding"]
+[node name="BuildingSite" parent="WarehouseBuilding" groups=["building_site"]]
 warehouse_path = NodePath("../../Warehouse")
 consume_policy = 3
 
@@ -383,6 +396,19 @@ surface_material_override/0 = SubResource("7_stone_mat")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="StonePickup5"]
 shape = SubResource("10_pickup_shape")
 
+[node name="BuildPlacementController" type="Node3D" parent="." groups=["build_controller"]]
+script = ExtResource("16_build_controller")
+buildable_civil_house_scene = ExtResource("5_civil_house")
+buildable_warehouse_scene = ExtResource("6_warehouse_building")
+player_path = NodePath("../Player")
+build_menu_path = NodePath("../BuildMenuLayer/BuildMenu")
+warehouse_path = NodePath("../Warehouse")
+population_manager_path = NodePath("../PopulationManager")
+
+[node name="BuildMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="BuildMenu" parent="BuildMenuLayer" instance=ExtResource("17_build_menu")]
+
 [node name="NPCCreationMenuLayer" type="CanvasLayer" parent="."]
 
 [node name="NPCCreationMenu" parent="NPCCreationMenuLayer" instance=ExtResource("8_creation_menu")]
@@ -404,5 +430,7 @@ player_inventory_path = NodePath("../../Player/PlayerInventory")
 [node name="GameHUD" parent="HUDLayer" instance=ExtResource("14_game_hud")]
 player_inventory_path = NodePath("../../Player/PlayerInventory")
 warehouse_path = NodePath("../../Warehouse")
+building_site_path = NodePath("../../CivilHouseA/BuildingSite")
+build_controller_path = NodePath("../../BuildPlacementController")
 population_manager_path = NodePath("../../PopulationManager")
 start_open = false

@@ -11,6 +11,8 @@ const REPAIR_AMOUNT_PER_STEP := 10.0
 const COLLECTOR_TIMEOUT := 20.0
 const PATROL_FALLBACK_OFFSET := Vector3(4.0, 0.0, 0.0)
 const FOLLOW_TARGET_LOST_REASON := "FOLLOW_TARGET failed: target node is no longer valid."
+const ASSIST_BUILD_NO_PENDING_REASON := "ASSIST_BUILD cancelado: nenhuma construção pendente encontrada."
+const ASSIST_BUILD_NO_RESOURCES_REASON := "ASSIST_BUILD bloqueado: recursos insuficientes."
 
 const COLLECTOR_FINDING_RESOURCE := "PROCURANDO_RECURSO"
 const COLLECTOR_GOING_TO_GATHER := "INDO_COLETAR"
@@ -65,7 +67,7 @@ func start_order(order: NPCOrder) -> int:
 		NPCEnums.OrderType.ASSIST_BUILD:
 			var assist_reason := _validate_build_target(order)
 			if not assist_reason.is_empty():
-				if assist_reason.begins_with("ASSIST_BUILD completed"):
+				if assist_reason == ASSIST_BUILD_NO_PENDING_REASON:
 					return _finish(order, NPCEnums.OrderStatus.COMPLETED, assist_reason)
 				return _finish(order, NPCEnums.OrderStatus.FAILED, assist_reason)
 			_npc.tactical_state.reset_movement_modifiers()
@@ -169,7 +171,7 @@ func _process_assist_build(order: NPCOrder, delta: float) -> int:
 	if not _is_valid_incomplete_building_site(order.target_node):
 		var next_site := _find_nearest_incomplete_building_site()
 		if next_site == null:
-			return _finish(order, NPCEnums.OrderStatus.COMPLETED, "ASSIST_BUILD completed: nenhuma construcao pendente encontrada.")
+			return _finish(order, NPCEnums.OrderStatus.COMPLETED, ASSIST_BUILD_NO_PENDING_REASON)
 		# Redireciona para o próximo canteiro sem criar nova ordem.
 		order.target_node = next_site
 		_build_step_elapsed = 0.0
@@ -193,7 +195,7 @@ func _process_assist_build(order: NPCOrder, delta: float) -> int:
 		if bool(order.target_node.get("is_completed")):
 			# Concluído agora; loop vai redirecionar na próxima frame.
 			return NPCEnums.OrderStatus.RUNNING
-		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD blocked: recursos insuficientes para continuar.")
+		return _finish(order, NPCEnums.OrderStatus.FAILED, ASSIST_BUILD_NO_RESOURCES_REASON)
 	if not order.target_node.has_method("build_step"):
 		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD failed: target does not accept build progress.")
 
@@ -206,7 +208,7 @@ func _process_assist_build(order: NPCOrder, delta: float) -> int:
 	if bool(order.target_node.get("is_completed")):
 		var next_site_after_build := _find_nearest_incomplete_building_site()
 		if next_site_after_build == null:
-			return _finish(order, NPCEnums.OrderStatus.COMPLETED, "ASSIST_BUILD completed: nenhuma construcao pendente encontrada.")
+			return _finish(order, NPCEnums.OrderStatus.COMPLETED, ASSIST_BUILD_NO_PENDING_REASON)
 		order.target_node = next_site_after_build
 		_build_step_elapsed = 0.0
 		_npc.tactical_state.reset_movement_modifiers()
@@ -262,7 +264,7 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 				return NPCEnums.OrderStatus.RUNNING
 			_collector_target = _find_nearest_resource_pickup(_collector_resource_filter)
 			if _collector_target == null:
-				return _finish(order, NPCEnums.OrderStatus.COMPLETED, "Nenhum recurso encontrado para o tipo: %s" % _resource_filter_label(_collector_resource_filter))
+				return _finish(order, NPCEnums.OrderStatus.COMPLETED, "GATHER_RESOURCE concluído: nenhum recurso restante do tipo %s." % _resource_filter_label(_collector_resource_filter))
 			_set_collector_state(COLLECTOR_GOING_TO_GATHER)
 			_npc._begin_semantic_move(_collector_target.global_position, NPCTacticalState.MOVING)
 		COLLECTOR_GOING_TO_GATHER:
@@ -440,7 +442,7 @@ func _validate_build_target(order: NPCOrder) -> String:
 		return ""
 	if is_instance_valid(order.target_node) and not _is_building_site(order.target_node):
 		return "ASSIST_BUILD failed: target does not accept build progress."
-	return "ASSIST_BUILD completed: nenhuma construcao pendente encontrada."
+	return ASSIST_BUILD_NO_PENDING_REASON
 
 
 func _start_garrison(order: NPCOrder) -> int:

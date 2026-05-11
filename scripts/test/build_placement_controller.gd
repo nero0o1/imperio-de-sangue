@@ -18,6 +18,7 @@ const BuildingPlacementPreviewScript = preload("res://scripts/building/building_
 @export var civil_house_footprint_size: Vector3 = Vector3(4.0, 2.0, 4.0)
 @export var min_distance_from_player: float = 2.0
 @export var min_distance_from_existing_buildings: float = 2.0
+@export var max_navigation_snap_distance: float = 1.5
 
 var _is_placing: bool = false
 var _current_rotation_y: float = 0.0
@@ -36,6 +37,7 @@ var _last_reported_reason: String = ""
 
 
 func _ready() -> void:
+	add_to_group("build_controller")
 	_connect_build_menu()
 
 
@@ -227,6 +229,38 @@ func _validate_current_target() -> Dictionary:
 			"position": placement_position,
 		}
 
+	var system_reason := _get_system_invalid_reason()
+	if not system_reason.is_empty():
+		return {
+			"valid": false,
+			"reason": system_reason,
+			"position": placement_position,
+		}
+
+	var building_state_reason := _get_building_state_invalid_reason()
+	if not building_state_reason.is_empty():
+		return {
+			"valid": false,
+			"reason": building_state_reason,
+			"position": placement_position,
+		}
+
+	var navigation_reason := _get_navigation_invalid_reason(placement_position)
+	if not navigation_reason.is_empty():
+		return {
+			"valid": false,
+			"reason": navigation_reason,
+			"position": placement_position,
+		}
+
+	var resource_reason := _get_resource_invalid_reason()
+	if not resource_reason.is_empty():
+		return {
+			"valid": false,
+			"reason": resource_reason,
+			"position": placement_position,
+		}
+
 	var overlap_reason := _get_overlap_invalid_reason(placement_position)
 	if not overlap_reason.is_empty():
 		return {
@@ -317,7 +351,10 @@ func _get_overlap_invalid_reason(placement_position: Vector3) -> String:
 	for hit in hits:
 		var collider: Variant = hit.get("collider")
 		if collider is Node and not _should_ignore_overlap(collider as Node):
-			return "sobrepondo %s" % String((collider as Node).name)
+			var building_site := _find_related_building_site(collider as Node)
+			if building_site != null and bool(building_site.get("is_completed")):
+				return "construcao ja concluida"
+			return "colisao: %s" % String((collider as Node).name)
 
 	return ""
 
@@ -343,6 +380,145 @@ func _get_distance_invalid_reason(placement_position: Vector3) -> String:
 			return "muito_perto_de %s" % String(node.name)
 
 	return ""
+
+
+func _get_system_invalid_reason() -> String:
+	if _current_scene == null:
+		return "build controller ausente"
+	if _current_building_id == &"civil_house" and _resolve_warehouse() == null:
+		return "warehouse ausente"
+	return ""
+
+
+func _get_building_state_invalid_reason() -> String:
+	if _current_scene == null:
+		return "build controller ausente"
+	var probe := _current_scene.instantiate()
+	var site := _find_first_child_of_type(probe, "BuildingSite") as BuildingSite
+	var reason := ""
+	if site != null and bool(site.get("is_completed")):
+		reason = "construcao ja concluida"
+	probe.queue_free()
+	return reason
+
+
+func _get_navigation_invalid_reason(placement_position: Vector3) -> String:
+	if not _tree_has_navigation_region():
+		return ""
+	var map := get_world_3d().get_navigation_map()
+	if not map.is_valid():
+		return "fora da area navegavel"
+	var closest := NavigationServer3D.map_get_closest_point(map, placement_position)
+	if not closest.is_finite():
+		return "fora da area navegavel"
+	if _horizontal_distance(closest, placement_position) > max_navigation_snap_distance:
+		return "fora da area navegavel"
+	return ""
+
+
+func _get_resource_invalid_reason() -> String:
+	var required := _get_required_resources_for_current_building()
+	if required.is_empty():
+		return ""
+	if _has_resources_available(required):
+		return ""
+	return "recurso insuficiente"
+
+
+func _get_required_resources_for_current_building() -> Dictionary:
+	if _current_scene == null:
+		return {}
+	var probe := _current_scene.instantiate()
+	var site := _find_first_child_of_type(probe, "BuildingSite") as BuildingSite
+	var required := {}
+	if site != null:
+		var value: Variant = site.get("required_resources")
+		if value is Dictionary:
+			required = (value as Dictionary).duplicate(true)
+	probe.queue_free()
+	return required
+
+
+func _has_resources_available(required: Dictionary) -> bool:
+	var available := {}
+	var warehouse := _resolve_warehouse()
+	if warehouse != null and warehouse.has_method("get_stock_snapshot"):
+		_merge_resource_snapshot(available, warehouse.call("get_stock_snapshot"))
+	var inventory := _resolve_player_inventory()
+	if inventory != null:
+		if inventory.has_method("get_all_resources"):
+			_merge_resource_snapshot(available, inventory.call("get_all_resources"))
+		elif inventory.has_method("get_all_items"):
+			_merge_resource_snapshot(available, inventory.call("get_all_items"))
+
+	for resource_id in required.keys():
+		var required_amount := int(required[resource_id])
+		var available_amount := int(available.get(StringName(String(resource_id)), 0))
+		if available_amount < required_amount:
+			return false
+	return true
+
+
+func _merge_resource_snapshot(target: Dictionary, source: Variant) -> void:
+	if not (source is Dictionary):
+		return
+	for resource_id in (source as Dictionary).keys():
+		var key := StringName(String(resource_id))
+		target[key] = int(target.get(key, 0)) + int((source as Dictionary)[resource_id])
+
+
+func _resolve_warehouse() -> Warehouse:
+	var parent := get_parent()
+	if parent == null:
+		return null
+	if not String(warehouse_path).is_empty():
+		var explicit := parent.get_node_or_null(warehouse_path)
+		if explicit is Warehouse:
+			return explicit
+	for node in get_tree().get_nodes_in_group("warehouse"):
+		if node is Warehouse:
+			return node
+	return _find_first_child_of_type(parent, "Warehouse") as Warehouse
+
+
+func _resolve_player_inventory() -> InventoryContainer:
+	var parent := get_parent()
+	if parent == null:
+		return null
+	for node in get_tree().get_nodes_in_group("player_inventory"):
+		if node is InventoryContainer:
+			return node
+	var found := _find_first_child_of_type(parent, "InventoryContainer")
+	return found as InventoryContainer
+
+
+func _tree_has_navigation_region() -> bool:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return false
+	return _find_navigation_region(scene) != null
+
+
+func _find_navigation_region(root: Node) -> NavigationRegion3D:
+	if root is NavigationRegion3D:
+		return root as NavigationRegion3D
+	for child in root.get_children():
+		var found := _find_navigation_region(child)
+		if found != null:
+			return found
+	return null
+
+
+func _find_related_building_site(node: Node) -> BuildingSite:
+	var current := node
+	while current != null:
+		if current is BuildingSite:
+			return current as BuildingSite
+		var nested := _find_first_child_of_type(current, "BuildingSite") as BuildingSite
+		if nested != null:
+			return nested
+		current = current.get_parent()
+	return null
 
 
 func _horizontal_distance(a: Vector3, b: Vector3) -> float:
@@ -429,6 +605,8 @@ func _node_matches_type(node: Node, class_name_to_find: String) -> bool:
 	if class_name_to_find == "PopulationManager" and _is_valid_population_manager(node):
 		return true
 	if class_name_to_find == "Warehouse" and node is Warehouse:
+		return true
+	if class_name_to_find == "InventoryContainer" and node is InventoryContainer:
 		return true
 	return node.is_class(class_name_to_find) or node.get_class() == class_name_to_find
 

@@ -372,9 +372,9 @@ func _on_assist_build_pressed() -> void:
 	print("[UIOrder] %s clicked ASSIST_BUILD" % current_npc.npc_name)
 	var target := _find_nearest_building_site()
 	if target == null:
-		print("[Order] %s FAILED ASSIST_BUILD: no valid BuildingSite found in scene." % current_npc.npc_name)
-		return
-	print("[Order] %s ASSIST_BUILD -> target=%s" % [current_npc.npc_name, target.name])
+		print("[Order] %s ASSIST_BUILD -> sem alvo inicial; executor buscara BuildingSite pendente." % current_npc.npc_name)
+	else:
+		print("[Order] %s ASSIST_BUILD -> target=%s" % [current_npc.npc_name, target.name])
 	current_npc.issue_assist_build_order(target, queue_mode)
 
 

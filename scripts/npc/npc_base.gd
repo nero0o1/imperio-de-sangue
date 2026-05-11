@@ -40,6 +40,7 @@ var _stuck_repath_attempts: int = 0
 var _navigation_failed: bool = false
 var _recovering_from_stuck: bool = false
 var _recovery_return_target: Vector3 = Vector3.ZERO
+var _last_logged_navigation_target: Vector3 = Vector3(INF, INF, INF)
 # Inventário próprio do NPC para coleta e depósito de recursos.
 var _npc_inventory: NpcInventory = null
 var _idle_anchor: Vector3 = Vector3.ZERO
@@ -326,6 +327,7 @@ func _begin_semantic_move(destination: Vector3, tactical: String) -> void:
 	_semantic_motion_active = true
 	_reset_navigation_recovery()
 	tactical_state.set_state(tactical)
+	_log_navigation_target_if_changed(destination)
 	if _use_navigation_agent:
 		_navigation_agent.target_position = destination
 	else:
@@ -349,6 +351,7 @@ func _update_semantic_follow_target(target_node: Node3D) -> void:
 	if not is_instance_valid(target_node):
 		return
 	_target_position = target_node.global_position
+	_log_navigation_target_if_changed(_target_position)
 
 
 func _set_semantic_move_target(destination: Vector3) -> void:
@@ -357,6 +360,7 @@ func _set_semantic_move_target(destination: Vector3) -> void:
 		return
 	_target_position = destination
 	_recovery_return_target = destination
+	_log_navigation_target_if_changed(destination)
 	if _use_navigation_agent:
 		_navigation_agent.target_position = destination
 
@@ -418,6 +422,8 @@ func _configure_navigation_agent() -> void:
 	_navigation_agent.target_desired_distance = arrival_distance
 	_navigation_agent.max_speed = movement_speed
 	_use_navigation_agent = true
+	_log("NavigationRegion3D encontrado.")
+	_log("NavigationAgent3D ativo.")
 
 
 func _process_move_to_position(delta: float) -> void:
@@ -456,6 +462,7 @@ func _process_following(delta: float) -> void:
 	_target_position = target_position - direction * follow_distance
 	if _use_navigation_agent:
 		_navigation_agent.target_position = _target_position
+		_log_navigation_target_if_changed(_target_position)
 
 	_move_toward_position(_get_next_movement_position(), delta)
 	_update_navigation_recovery(delta)
@@ -554,7 +561,7 @@ func _update_navigation_recovery(delta: float) -> void:
 func _handle_navigation_stuck() -> void:
 	_log("[NPCNavigation] stuck detectado")
 	if _stuck_repath_attempts >= NAV_STUCK_MAX_RECOVERY_ATTEMPTS:
-		_log("[NPCNavigation] falha final apos tentativas de recuperacao")
+		_log("[NPCNavigation] falha final apos tentativas de recuperacao: sem progresso suficiente ate %s apos %d tentativas." % [str(_target_position), _stuck_repath_attempts])
 		_navigation_failed = true
 		_semantic_motion_active = false
 		velocity = Vector3.ZERO
@@ -571,9 +578,11 @@ func _handle_navigation_stuck() -> void:
 	to_target.y = 0.0
 	if to_target.length() <= 0.001:
 		to_target = -global_transform.basis.z
-	var lateral := Vector3(-to_target.z, 0.0, to_target.x).normalized()
-	if _stuck_repath_attempts % 2 == 0:
-		lateral = -lateral
+	var lateral := _get_nearby_npc_avoidance_direction()
+	if lateral.length() <= 0.001:
+		lateral = Vector3(-to_target.z, 0.0, to_target.x).normalized()
+		if _stuck_repath_attempts % 2 == 0:
+			lateral = -lateral
 
 	_recovery_return_target = _target_position
 	var offset_target := global_position + lateral * NAV_STUCK_OFFSET_DISTANCE
@@ -582,6 +591,32 @@ func _handle_navigation_stuck() -> void:
 	_set_semantic_move_target(offset_target)
 	_recovering_from_stuck = true
 	_reset_navigation_progress_sample()
+
+
+func _log_navigation_target_if_changed(destination: Vector3) -> void:
+	if not destination.is_finite():
+		return
+	if not _last_logged_navigation_target.is_finite() or _last_logged_navigation_target.distance_to(destination) > 0.25:
+		_last_logged_navigation_target = destination
+		_log("[NPCNavigation] destino definido: %s" % str(destination))
+
+
+func _get_nearby_npc_avoidance_direction() -> Vector3:
+	var tree := get_tree()
+	if tree == null:
+		return Vector3.ZERO
+	var away := Vector3.ZERO
+	for node in tree.get_nodes_in_group("npc"):
+		if node == self or not (node is Node3D):
+			continue
+		var offset := global_position - (node as Node3D).global_position
+		offset.y = 0.0
+		var distance := offset.length()
+		if distance > 0.001 and distance < 1.6:
+			away += offset.normalized() * (1.6 - distance)
+	if away.length() <= 0.001:
+		return Vector3.ZERO
+	return away.normalized()
 
 
 func _arrive_at_destination() -> void:
