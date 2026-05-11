@@ -1,0 +1,33 @@
+# Set default behaviour to automatically normalize line endings
+* text=auto
+
+# Godot specific text files
+*.gd text eol=lf linguist-language=GDScript
+*.tscn text eol=lf linguist-language=XML
+*.tres text eol=lf linguist-language=XML
+*.project text eol=lf linguist-language=INI
+
+# Other text files
+*.md text linguist-language=Markdown
+*.txt text
+*.json text
+
+# Explicitly denote binary files so they are not modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.svg binary
+*.ogg binary
+*.wav binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.blend binary
+*.fbx binary
+*.glb binary
+*.pdf binary
+
+# Ignore Godot auto-generated files from linguist statistics
+.godot/** linguist-vendored
+*.import linguist-generated
+export_presets.cfg linguist-generated
