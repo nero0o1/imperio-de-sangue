@@ -72,7 +72,7 @@ func start_order(order: NPCOrder) -> int:
 				return _finish(order, NPCEnums.OrderStatus.FAILED, assist_reason)
 			_npc.tactical_state.reset_movement_modifiers()
 			if is_instance_valid(order.target_node):
-				_npc._begin_semantic_move(order.target_node.global_position, NPCTacticalState.ASSISTING_BUILD)
+				_begin_move_to_interaction_target(order.target_node as Node3D, BUILD_INTERACTION_DISTANCE, NPCTacticalState.ASSISTING_BUILD)
 			return NPCEnums.OrderStatus.RUNNING
 		NPCEnums.OrderType.ATTACK_MOVE:
 			if not order.target_position.is_finite():
@@ -176,10 +176,10 @@ func _process_assist_build(order: NPCOrder, delta: float) -> int:
 		order.target_node = next_site
 		_build_step_elapsed = 0.0
 		_npc.tactical_state.reset_movement_modifiers()
-		_npc._begin_semantic_move(order.target_node.global_position, NPCTacticalState.ASSISTING_BUILD)
+		_begin_move_to_interaction_target(order.target_node as Node3D, BUILD_INTERACTION_DISTANCE, NPCTacticalState.ASSISTING_BUILD)
 		return NPCEnums.OrderStatus.RUNNING
 
-	_npc._set_semantic_move_target(order.target_node.global_position)
+	_set_move_target_for_interaction(order.target_node as Node3D, BUILD_INTERACTION_DISTANCE)
 	if not _npc._is_within_horizontal_distance(order.target_node.global_position, BUILD_INTERACTION_DISTANCE):
 		_npc.tactical_state.blocks_auto_movement = false
 		return NPCEnums.OrderStatus.RUNNING
@@ -212,7 +212,7 @@ func _process_assist_build(order: NPCOrder, delta: float) -> int:
 		order.target_node = next_site_after_build
 		_build_step_elapsed = 0.0
 		_npc.tactical_state.reset_movement_modifiers()
-		_npc._begin_semantic_move(order.target_node.global_position, NPCTacticalState.ASSISTING_BUILD)
+		_begin_move_to_interaction_target(order.target_node as Node3D, BUILD_INTERACTION_DISTANCE, NPCTacticalState.ASSISTING_BUILD)
 	return NPCEnums.OrderStatus.RUNNING
 
 
@@ -241,7 +241,7 @@ func _start_gather_resource(order: NPCOrder) -> int:
 		_set_collector_state(COLLECTOR_GOING_TO_DEPOSIT)
 	elif _collector_target != null:
 		_set_collector_state(COLLECTOR_GOING_TO_GATHER)
-		_npc._begin_semantic_move(_collector_target.global_position, NPCTacticalState.MOVING)
+		_begin_move_to_interaction_target(_collector_target, GATHER_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
 	else:
 		_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 	return NPCEnums.OrderStatus.RUNNING
@@ -266,13 +266,13 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 			if _collector_target == null:
 				return _finish(order, NPCEnums.OrderStatus.COMPLETED, "GATHER_RESOURCE concluído: nenhum recurso restante do tipo %s." % _resource_filter_label(_collector_resource_filter))
 			_set_collector_state(COLLECTOR_GOING_TO_GATHER)
-			_npc._begin_semantic_move(_collector_target.global_position, NPCTacticalState.MOVING)
+			_begin_move_to_interaction_target(_collector_target, GATHER_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
 		COLLECTOR_GOING_TO_GATHER:
 			if not _is_valid_resource_pickup_for_filter(_collector_target, _collector_resource_filter):
 				_collector_target = null
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 				return NPCEnums.OrderStatus.RUNNING
-			_npc._set_semantic_move_target(_collector_target.global_position)
+			_set_move_target_for_interaction(_collector_target, GATHER_INTERACTION_DISTANCE)
 			if _npc._is_within_horizontal_distance(_collector_target.global_position, GATHER_INTERACTION_DISTANCE):
 				_set_collector_state(COLLECTOR_COLLECTING)
 		COLLECTOR_COLLECTING:
@@ -294,9 +294,9 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 			if _collector_warehouse == null:
 				return _finish(order, NPCEnums.OrderStatus.FAILED, "Coleta encerrada: nenhum armazem valido encontrado.")
 			if _collector_state_elapsed <= delta + 0.0001:
-				_npc._begin_semantic_move(_collector_warehouse.global_position, NPCTacticalState.MOVING)
+				_begin_move_to_interaction_target(_collector_warehouse, DROP_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
 			else:
-				_npc._set_semantic_move_target(_collector_warehouse.global_position)
+				_set_move_target_for_interaction(_collector_warehouse, DROP_INTERACTION_DISTANCE)
 			if _npc._is_within_horizontal_distance(_collector_warehouse.global_position, DROP_INTERACTION_DISTANCE):
 				_set_collector_state(COLLECTOR_DEPOSITING)
 		COLLECTOR_DEPOSITING:
@@ -337,7 +337,7 @@ func _start_force_drop(order: NPCOrder) -> int:
 
 	order.target_node = target
 	_npc.tactical_state.reset_movement_modifiers()
-	_npc._begin_semantic_move(target.global_position, NPCTacticalState.MOVING)
+	_begin_move_to_interaction_target(target, DROP_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
 	return NPCEnums.OrderStatus.RUNNING
 
 
@@ -352,7 +352,7 @@ func _process_force_drop(order: NPCOrder) -> int:
 		return _finish(order, NPCEnums.OrderStatus.COMPLETED, "FORCE_DROP: inventario do ator esta vazio.")
 
 	var target := order.target_node as Node3D
-	_npc._set_semantic_move_target(target.global_position)
+	_set_move_target_for_interaction(target, DROP_INTERACTION_DISTANCE)
 	if not _npc._is_within_horizontal_distance(target.global_position, DROP_INTERACTION_DISTANCE):
 		return NPCEnums.OrderStatus.RUNNING
 
@@ -399,7 +399,7 @@ func _start_repair(order: NPCOrder) -> int:
 
 	var target := order.target_node as Node3D
 	_npc.tactical_state.reset_movement_modifiers()
-	_npc._begin_semantic_move(target.global_position, NPCTacticalState.MOVING)
+	_begin_move_to_interaction_target(target, REPAIR_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
 	return NPCEnums.OrderStatus.RUNNING
 
 
@@ -410,7 +410,7 @@ func _process_repair(order: NPCOrder, delta: float) -> int:
 		return _finish(order, NPCEnums.OrderStatus.COMPLETED, "REPAIR completed: construcao reparada.")
 
 	var target := order.target_node as Node3D
-	_npc._set_semantic_move_target(target.global_position)
+	_set_move_target_for_interaction(target, REPAIR_INTERACTION_DISTANCE)
 	if not _npc._is_within_horizontal_distance(target.global_position, REPAIR_INTERACTION_DISTANCE):
 		return NPCEnums.OrderStatus.RUNNING
 
@@ -425,6 +425,37 @@ func _process_repair(order: NPCOrder, delta: float) -> int:
 	if not bool(order.target_node.call("is_damaged")):
 		return _finish(order, NPCEnums.OrderStatus.COMPLETED, "REPAIR completed: construcao reparada.")
 	return NPCEnums.OrderStatus.RUNNING
+
+
+func _begin_move_to_interaction_target(target: Node3D, interaction_distance: float, tactical: String) -> void:
+	if not is_instance_valid(target):
+		return
+	_npc._begin_semantic_move(_get_approach_position_for_target(target, interaction_distance), tactical)
+
+
+func _set_move_target_for_interaction(target: Node3D, interaction_distance: float) -> void:
+	if not is_instance_valid(target):
+		return
+	_npc._set_semantic_move_target(_get_approach_position_for_target(target, interaction_distance))
+
+
+func _get_approach_position_for_target(target: Node3D, interaction_distance: float) -> Vector3:
+	if _npc == null or not is_instance_valid(target):
+		return Vector3.ZERO
+
+	var target_position := target.global_position
+	var direction_from_target := _npc.global_position - target_position
+	direction_from_target.y = 0.0
+	if direction_from_target.length() <= 0.001:
+		direction_from_target = -_npc.global_transform.basis.z
+		direction_from_target.y = 0.0
+	if direction_from_target.length() <= 0.001:
+		direction_from_target = Vector3(0.0, 0.0, -1.0)
+
+	var approach_radius := maxf(interaction_distance * 0.75, 0.5)
+	var desired := target_position + direction_from_target.normalized() * approach_radius
+	desired.y = target_position.y
+	return _npc.project_position_to_navigation(desired)
 
 
 func _validate_capability(order: NPCOrder) -> String:
@@ -646,14 +677,17 @@ func _build_navigation_failure_reason(order: NPCOrder, prefix: String) -> String
 		npc_position = _npc.global_position
 		parts.append("npc_pos=%s" % str(npc_position))
 
+	var diagnostic_target: Node3D = null
 	var target_valid := is_instance_valid(_collector_target)
 	parts.append("alvo_valido=%s" % str(target_valid))
 	if target_valid:
+		diagnostic_target = _collector_target
 		parts.append("alvo=%s (%s)" % [String(_collector_target.name), String(_collector_target.get_path())])
 		parts.append("alvo_pos=%s" % str(_collector_target.global_position))
 		parts.append("dist=%.2f" % npc_position.distance_to(_collector_target.global_position))
 	elif order != null and is_instance_valid(order.target_node) and order.target_node is Node3D:
 		var target := order.target_node as Node3D
+		diagnostic_target = target
 		parts.append("alvo_ordem=%s (%s)" % [String(target.name), String(target.get_path())])
 		parts.append("alvo_ordem_pos=%s" % str(target.global_position))
 		parts.append("dist_ordem=%.2f" % npc_position.distance_to(target.global_position))
@@ -661,9 +695,12 @@ func _build_navigation_failure_reason(order: NPCOrder, prefix: String) -> String
 		parts.append("alvo=none")
 
 	var nav_regions := 0
-	if _npc != null and _npc.get_tree() != null:
-		nav_regions = _npc.get_tree().get_nodes_in_group("navigation_region").size()
+	if _npc != null:
+		nav_regions = _npc.get_navigation_region_count()
 	parts.append("navigation_regions=%d" % nav_regions)
+	if _npc != null:
+		parts.append("causa_provavel=%s" % _npc.get_navigation_failure_hint(diagnostic_target))
+		parts.append("nav_context={%s}" % _npc.get_navigation_debug_context(diagnostic_target))
 	return " ".join(parts)
 
 

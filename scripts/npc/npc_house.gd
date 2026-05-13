@@ -19,6 +19,7 @@ var _created_npcs: Array[NPCBase] = []
 var _next_npc_index: int = 1
 var _population_manager: Node = null
 var _population_registered := false
+var _spawn_nav_warning_logged := false
 
 
 func _ready() -> void:
@@ -133,6 +134,11 @@ func _get_spawn_parent() -> Node:
 
 
 func _get_spawn_position(index: int) -> Vector3:
+	var radial_position := _get_radial_spawn_position(index)
+	return _project_spawn_position_to_navigation(radial_position)
+
+
+func _get_radial_spawn_position(index: int) -> Vector3:
 	var safe_radius := maxf(spawn_radius, 0.5)
 	var slots_per_ring := 6
 	var zero_based_index := maxi(index - 1, 0)
@@ -143,6 +149,36 @@ func _get_spawn_position(index: int) -> Vector3:
 	var angle := float(slot) * TAU / float(slots_per_ring) + angle_offset
 	var offset := Vector3(cos(angle), 0.0, sin(angle)) * ring_radius
 	return global_position + offset
+
+
+func _project_spawn_position_to_navigation(candidate: Vector3) -> Vector3:
+	if not candidate.is_finite():
+		_log_spawn_nav_warning_once("spawn candidato nao finito; usando fallback radial.")
+		return candidate
+
+	var world := get_world_3d()
+	if world == null:
+		_log_spawn_nav_warning_once("World3D indisponivel; usando fallback radial.")
+		return candidate
+
+	var navigation_map := world.get_navigation_map()
+	if not navigation_map.is_valid():
+		_log_spawn_nav_warning_once("navigation_map invalido; usando fallback radial.")
+		return candidate
+
+	var closest_point := NavigationServer3D.map_get_closest_point(navigation_map, candidate)
+	if not closest_point.is_finite():
+		_log_spawn_nav_warning_once("navmesh nao retornou ponto finito; usando fallback radial.")
+		return candidate
+
+	return closest_point
+
+
+func _log_spawn_nav_warning_once(message: String) -> void:
+	if _spawn_nav_warning_logged:
+		return
+	_spawn_nav_warning_logged = true
+	push_warning("[NPC] Casa %s: %s" % [house_name, message])
 
 
 func _on_created_npc_tree_exiting(npc: NPCBase) -> void:
