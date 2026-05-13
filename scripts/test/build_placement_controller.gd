@@ -20,7 +20,7 @@ const BuildingPlacementPreviewScript = preload("res://scripts/building/building_
 @export var min_distance_from_existing_buildings: float = 2.0
 @export var max_navigation_snap_distance: float = 1.5
 @export var placement_validation_interval: float = 0.08
-@export var placement_debug_enabled: bool = true
+@export var placement_debug_enabled: bool = false
 
 var _is_placing: bool = false
 var _current_rotation_y: float = 0.0
@@ -32,10 +32,13 @@ var _current_building_id: StringName = &""
 var _current_display_name: String = ""
 var _current_scene: PackedScene = null
 var _current_footprint_size: Vector3 = Vector3.ZERO
+var _current_required_resources: Dictionary = {}
+var _current_initial_completed_state: bool = false
 var _preview: Node3D = null
 var _last_reported_reason: String = ""
 var _placement_validation_elapsed: float = 0.0
 var _last_ground_probe: Dictionary = {}
+var _building_scene_config_cache: Dictionary = {}
 
 @onready var _player: Node3D = get_node_or_null(player_path) as Node3D
 @onready var _build_menu: Node = get_node_or_null(build_menu_path)
@@ -108,6 +111,8 @@ func begin_placement(building_id: StringName) -> void:
 	_current_display_name = String(config["display_name"])
 	_current_scene = config["scene"] as PackedScene
 	_current_footprint_size = config["footprint_size"]
+	_current_required_resources = (config["required_resources"] as Dictionary).duplicate(true)
+	_current_initial_completed_state = bool(config["initial_completed_state"])
 	_is_placing = true
 	_current_rotation_y = 0.0
 	_last_reported_reason = ""
@@ -189,20 +194,46 @@ func _get_building_config(building_id: StringName) -> Dictionary:
 		&"warehouse":
 			if buildable_warehouse_scene == null:
 				return {}
+			var warehouse_scene_config := _get_cached_scene_building_config(building_id, buildable_warehouse_scene)
 			return {
 				"display_name": "Armazém",
 				"scene": buildable_warehouse_scene,
 				"footprint_size": warehouse_footprint_size,
+				"required_resources": warehouse_scene_config["required_resources"],
+				"initial_completed_state": warehouse_scene_config["initial_completed_state"],
 			}
 		&"civil_house":
 			if buildable_civil_house_scene == null:
 				return {}
+			var civil_house_scene_config := _get_cached_scene_building_config(building_id, buildable_civil_house_scene)
 			return {
 				"display_name": "Casa Civil",
 				"scene": buildable_civil_house_scene,
 				"footprint_size": civil_house_footprint_size,
+				"required_resources": civil_house_scene_config["required_resources"],
+				"initial_completed_state": civil_house_scene_config["initial_completed_state"],
 			}
 	return {}
+
+
+func _get_cached_scene_building_config(building_id: StringName, scene: PackedScene) -> Dictionary:
+	if _building_scene_config_cache.has(building_id):
+		return (_building_scene_config_cache[building_id] as Dictionary).duplicate(true)
+
+	var config := {
+		"required_resources": {},
+		"initial_completed_state": false,
+	}
+	var probe := scene.instantiate()
+	var site := _find_first_child_of_type(probe, "BuildingSite") as BuildingSite
+	if site != null:
+		var required_value: Variant = site.get("required_resources")
+		if required_value is Dictionary:
+			config["required_resources"] = (required_value as Dictionary).duplicate(true)
+		config["initial_completed_state"] = bool(site.get("is_completed"))
+	probe.queue_free()
+	_building_scene_config_cache[building_id] = config.duplicate(true)
+	return config
 
 
 func _rotate_preview() -> void:
@@ -448,13 +479,9 @@ func _get_system_invalid_reason() -> String:
 func _get_building_state_invalid_reason() -> String:
 	if _current_scene == null:
 		return "build controller ausente"
-	var probe := _current_scene.instantiate()
-	var site := _find_first_child_of_type(probe, "BuildingSite") as BuildingSite
-	var reason := ""
-	if site != null and bool(site.get("is_completed")):
-		reason = "construcao ja concluida"
-	probe.queue_free()
-	return reason
+	if _current_initial_completed_state:
+		return "construcao ja concluida"
+	return ""
 
 
 func _get_navigation_invalid_reason(placement_position: Vector3) -> String:
@@ -483,15 +510,7 @@ func _get_resource_invalid_reason() -> String:
 func _get_required_resources_for_current_building() -> Dictionary:
 	if _current_scene == null:
 		return {}
-	var probe := _current_scene.instantiate()
-	var site := _find_first_child_of_type(probe, "BuildingSite") as BuildingSite
-	var required := {}
-	if site != null:
-		var value: Variant = site.get("required_resources")
-		if value is Dictionary:
-			required = (value as Dictionary).duplicate(true)
-	probe.queue_free()
-	return required
+	return _current_required_resources.duplicate(true)
 
 
 func _has_resources_available(required: Dictionary) -> bool:
@@ -772,6 +791,8 @@ func _clear_preview() -> void:
 	_current_display_name = ""
 	_current_scene = null
 	_current_footprint_size = Vector3.ZERO
+	_current_required_resources.clear()
+	_current_initial_completed_state = false
 	_placement_validation_elapsed = 0.0
 	if _preview != null:
 		_preview.queue_free()
