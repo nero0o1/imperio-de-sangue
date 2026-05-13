@@ -10,9 +10,43 @@ const DomainEventLoggerScript = preload("res://scripts/debug/domain_event_logger
 @export var remove_when_depleted: bool = true
 @export var debug_enabled: bool = false
 
+var reserved_by: Node = null
+
 
 func _ready() -> void:
 	add_to_group("resource_pickup")
+
+
+func can_be_reserved_by(actor: Node) -> bool:
+	if actor == null:
+		return false
+	if reserved_by == null:
+		return true
+	if not is_instance_valid(reserved_by):
+		reserved_by = null
+		return true
+	return reserved_by == actor
+
+
+func reserve_for(actor: Node) -> bool:
+	if not can_be_reserved_by(actor):
+		return false
+	reserved_by = actor
+	return true
+
+
+func release_reservation(actor: Node) -> void:
+	if reserved_by == actor or not is_instance_valid(reserved_by):
+		reserved_by = null
+
+
+func is_reserved_by_other(actor: Node) -> bool:
+	if reserved_by == null:
+		return false
+	if not is_instance_valid(reserved_by):
+		reserved_by = null
+		return false
+	return reserved_by != actor
 
 
 func interact(actor: Node) -> void:
@@ -120,6 +154,7 @@ func _debug_log(message: String) -> void:
 		print(message)
 
 func _deplete_pickup() -> void:
+	reserved_by = null
 	if remove_when_depleted:
 		queue_free()
 
