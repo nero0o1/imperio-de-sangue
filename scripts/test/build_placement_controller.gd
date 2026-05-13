@@ -19,6 +19,7 @@ const BuildingPlacementPreviewScript = preload("res://scripts/building/building_
 @export var min_distance_from_player: float = 2.0
 @export var min_distance_from_existing_buildings: float = 2.0
 @export var max_navigation_snap_distance: float = 1.5
+@export var placement_validation_interval: float = 0.08
 
 var _is_placing: bool = false
 var _current_rotation_y: float = 0.0
@@ -31,6 +32,7 @@ var _current_scene: PackedScene = null
 var _current_footprint_size: Vector3 = Vector3.ZERO
 var _preview: Node3D = null
 var _last_reported_reason: String = ""
+var _placement_validation_elapsed: float = 0.0
 
 @onready var _player: Node3D = get_node_or_null(player_path) as Node3D
 @onready var _build_menu: Node = get_node_or_null(build_menu_path)
@@ -41,8 +43,12 @@ func _ready() -> void:
 	_connect_build_menu()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _is_placing:
+		return
+
+	_placement_validation_elapsed += delta
+	if _placement_validation_elapsed < placement_validation_interval:
 		return
 
 	_update_current_target()
@@ -106,6 +112,7 @@ func begin_placement(building_id: StringName) -> void:
 	_preview.name = "BuildingPlacementPreview"
 	_preview.set("footprint_size", _current_footprint_size)
 	add_child(_preview)
+	_placement_validation_elapsed = placement_validation_interval
 	_update_current_target()
 	print("[BUILD] Posicionamento de %s iniciado." % _current_display_name)
 
@@ -199,6 +206,7 @@ func _rotate_preview() -> void:
 
 
 func _update_current_target() -> void:
+	_placement_validation_elapsed = 0.0
 	var validation := _validate_current_target()
 	_current_is_valid = bool(validation.get("valid", false))
 	_current_invalid_reason = String(validation.get("reason", ""))
@@ -468,17 +476,23 @@ func _merge_resource_snapshot(target: Dictionary, source: Variant) -> void:
 
 
 func _resolve_warehouse() -> Warehouse:
-	var parent := get_parent()
-	if parent == null:
-		return null
 	if not String(warehouse_path).is_empty():
-		var explicit := parent.get_node_or_null(warehouse_path)
+		# Resolve relative to self: paths like "../Warehouse" are exported
+		# from the BuildPlacementController, not from its parent.
+		var explicit := get_node_or_null(warehouse_path)
 		if explicit is Warehouse:
 			return explicit
+		# Fallback: try from parent in case the path was authored differently.
+		var parent := get_parent()
+		if parent != null:
+			var from_parent := parent.get_node_or_null(warehouse_path)
+			if from_parent is Warehouse:
+				return from_parent
 	for node in get_tree().get_nodes_in_group("warehouse"):
 		if node is Warehouse:
 			return node
-	return _find_first_child_of_type(parent, "Warehouse") as Warehouse
+	var scan_parent := get_parent()
+	return _find_first_child_of_type(scan_parent, "Warehouse") as Warehouse
 
 
 func _resolve_player_inventory() -> InventoryContainer:
@@ -530,16 +544,19 @@ func _make_target_transform(placement_position: Vector3) -> Transform3D:
 
 
 func _configure_buildable(buildable: Node3D) -> void:
+	buildable.add_to_group("destroyable_building")
 	var building_site := _find_first_child_of_type(buildable, "BuildingSite") as BuildingSite
 	if building_site != null:
-		if _current_building_id == &"warehouse":
-			building_site.consume_policy = BuildingResourceConsumer.ConsumePolicy.PLAYER_ONLY
-		elif _current_building_id == &"civil_house":
-			building_site.consume_policy = BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_THEN_PLAYER
-			building_site.warehouse_path = _get_warehouse_path_for(building_site)
+		building_site.add_to_group("building_site")
+		building_site.is_completed = false
+		building_site.build_progress = 0.0
+		building_site.consume_policy = BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_THEN_PLAYER
+		building_site.warehouse_path = _get_warehouse_path_for(building_site)
 
 	if _current_building_id == &"civil_house":
 		_configure_buildable_house(buildable)
+	elif _current_building_id == &"warehouse":
+		_configure_buildable_warehouse(buildable)
 
 
 func _configure_buildable_house(buildable_house: Node3D) -> void:
@@ -558,6 +575,15 @@ func _configure_buildable_house(buildable_house: Node3D) -> void:
 			var created_callable := Callable(parent, "_on_house_npc_created")
 			if not npc_house.npc_created.is_connected(created_callable):
 				npc_house.npc_created.connect(created_callable)
+
+
+func _configure_buildable_warehouse(buildable_warehouse: Node3D) -> void:
+	var warehouse := _find_first_child_of_type(buildable_warehouse, "Warehouse") as Warehouse
+	if warehouse != null:
+		warehouse.add_to_group("warehouse")
+	var interactable := _find_first_warehouse_interactable(buildable_warehouse)
+	if interactable != null:
+		interactable.add_to_group("warehouse_interactable")
 
 
 func _get_warehouse_path_for(from_node: Node) -> NodePath:
@@ -597,6 +623,25 @@ func _find_first_child_of_type(root: Node, class_name_to_find: String) -> Node:
 	return null
 
 
+func _find_first_warehouse_interactable(root: Node) -> Node3D:
+	if root == null:
+		return null
+	if root is Node3D and root.has_method("interact") and _has_property(root, "warehouse_path"):
+		return root as Node3D
+	for child in root.get_children():
+		var nested := _find_first_warehouse_interactable(child)
+		if nested != null:
+			return nested
+	return null
+
+
+func _has_property(node: Object, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if String(property.get("name", "")) == property_name:
+			return true
+	return false
+
+
 func _node_matches_type(node: Node, class_name_to_find: String) -> bool:
 	if class_name_to_find == "BuildingSite" and node is BuildingSite:
 		return true
@@ -612,11 +657,16 @@ func _node_matches_type(node: Node, class_name_to_find: String) -> bool:
 
 
 func _make_relative_path(from_node: Node, target_path: NodePath) -> NodePath:
-	var parent := get_parent()
-	if parent == null or String(target_path).is_empty():
+	if String(target_path).is_empty():
 		return target_path
 
-	var target := parent.get_node_or_null(target_path)
+	# Try resolving relative to self first (paths exported from this node).
+	var target := get_node_or_null(target_path)
+	if target == null:
+		# Fallback: resolve from parent for legacy path authoring.
+		var parent := get_parent()
+		if parent != null:
+			target = parent.get_node_or_null(target_path)
 	if target == null:
 		return NodePath("")
 
@@ -672,6 +722,7 @@ func _clear_preview() -> void:
 	_current_display_name = ""
 	_current_scene = null
 	_current_footprint_size = Vector3.ZERO
+	_placement_validation_elapsed = 0.0
 	if _preview != null:
 		_preview.queue_free()
 		_preview = null

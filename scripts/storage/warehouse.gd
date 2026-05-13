@@ -13,6 +13,7 @@ signal warehouse_changed(warehouse_id: StringName)
 
 
 func _ready() -> void:
+	add_to_group("warehouse")
 	ensure_inventory()
 	_sync_inventory_from_stock()
 

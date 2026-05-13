@@ -15,6 +15,7 @@ signal construction_completed(building_site: BuildingSite)
 @export var current_health: float = 100.0
 
 @export var consume_policy: int = BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_ONLY
+@export var debug_enabled: bool = false
 
 # Cache do custo por etapa computado em _ready(). required_resources e step_count sao
 # @export e nao mudam em runtime — o cache e seguro durante toda a vida do no.
@@ -34,6 +35,7 @@ var build_progress_per_payment: float:
 
 
 func _ready() -> void:
+	add_to_group("building_site")
 	build_progress = clampf(build_progress, 0.0, 100.0)
 	is_completed = is_completed or build_progress >= 100.0
 	max_health = maxf(max_health, 1.0)
@@ -96,13 +98,14 @@ func build_step(actor: Node) -> bool:
 
 	var payment_source := _resolve_payment_source(step_cost, actor)
 	if payment_source.is_empty():
-		print("[BuildingSite] Recursos insuficientes para %s. Custo: %s." % [String(building_id), _format_cost(step_cost)])
+		var block_reason := get_build_block_reason(actor)
+		print("[BuildingSite] %s" % block_reason)
 		_emit_build_event(
 			"building_site.consume.blocked_no_stock",
 			actor,
 			step_cost,
 			"blocked_no_stock",
-			"insufficient_resources",
+			block_reason,
 			before,
 			_snapshot(warehouse, inventory),
 			"",
@@ -130,7 +133,7 @@ func build_step(actor: Node) -> bool:
 	build_progress = minf(100.0, build_progress + _get_progress_per_step())
 	is_completed = is_completed or build_progress >= 100.0
 
-	print("[BuildingSite] %s recebeu pagamento: %s. Progresso: %.1f%%. Concluida: %s." % [
+	_debug_log("[BuildingSite] %s recebeu pagamento: %s. Progresso: %.1f%%. Concluida: %s." % [
 		String(building_id),
 		_format_cost(step_cost),
 		build_progress,
@@ -160,6 +163,26 @@ func build_step(actor: Node) -> bool:
 ## required_resources e step_count sao @export e nao mudam em runtime.
 func get_step_cost() -> Dictionary:
 	return _cached_step_cost.duplicate()
+
+
+func get_build_block_reason(actor: Node = null) -> String:
+	if is_completed:
+		return "ASSIST_BUILD bloqueado: %s ja esta concluida." % String(building_id)
+
+	var step_cost := get_step_cost()
+	if step_cost.is_empty():
+		return "ASSIST_BUILD bloqueado: receita invalida para %s." % String(building_id)
+
+	var warehouse := resolve_warehouse(actor)
+	var inventory := _resolve_actor_inventory(actor)
+	return "ASSIST_BUILD bloqueado: recursos insuficientes para %s. Faltando: %s. Politica: %s. Warehouse: %s. Inventario: %s. Custo etapa: %s." % [
+		String(building_id),
+		_format_missing_for_policy(step_cost, warehouse, inventory),
+		_payment_policy_label(),
+		_describe_warehouse_for_block(warehouse),
+		_describe_inventory_for_block(inventory),
+		_format_cost(step_cost),
+	]
 
 
 ## Calcula o custo por etapa a partir de required_resources e step_count.
@@ -246,6 +269,85 @@ func damage_for_test(amount: float) -> float:
 	current_health = maxf(0.0, current_health - amount)
 	print("[BuildingSite] %s recebeu dano de teste: %.1f/%.1f." % [String(building_id), current_health, max_health])
 	return before - current_health
+
+
+func _debug_log(message: String) -> void:
+	if debug_enabled:
+		print(message)
+
+
+func _format_missing_for_policy(step_cost: Dictionary, warehouse: Warehouse, inventory: InventoryContainer) -> String:
+	var parts: Array[String] = []
+	for resource_id in step_cost.keys():
+		var key := String(resource_id)
+		var required := int(step_cost[resource_id])
+		var warehouse_available := _warehouse_amount(warehouse, key) if _policy_allows_warehouse() else 0
+		var inventory_available := _inventory_amount(inventory, key) if _policy_allows_inventory() else 0
+		var best_available := maxi(warehouse_available, inventory_available)
+		if best_available < required:
+			parts.append("%s precisa %d, warehouse %d, inventario %d" % [
+				key,
+				required,
+				warehouse_available,
+				inventory_available,
+			])
+
+	if parts.is_empty():
+		return "fonte unica sem saldo suficiente para custo atomico"
+	return "; ".join(parts)
+
+
+func _policy_allows_warehouse() -> bool:
+	return consume_policy in [
+		BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_ONLY,
+		BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_THEN_PLAYER,
+		BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_THEN_INVENTORY,
+		BuildingResourceConsumer.ConsumePolicy.PLAYER_THEN_WAREHOUSE,
+		BuildingResourceConsumer.ConsumePolicy.INVENTORY_THEN_WAREHOUSE,
+	]
+
+
+func _policy_allows_inventory() -> bool:
+	return consume_policy in [
+		BuildingResourceConsumer.ConsumePolicy.PLAYER_ONLY,
+		BuildingResourceConsumer.ConsumePolicy.INVENTORY_ONLY,
+		BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_THEN_PLAYER,
+		BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_THEN_INVENTORY,
+		BuildingResourceConsumer.ConsumePolicy.PLAYER_THEN_WAREHOUSE,
+		BuildingResourceConsumer.ConsumePolicy.INVENTORY_THEN_WAREHOUSE,
+	]
+
+
+func _describe_warehouse_for_block(warehouse: Warehouse) -> String:
+	if not _policy_allows_warehouse():
+		return "nao usado pela politica"
+	if warehouse != null:
+		return "%s (%s)" % [String(warehouse.name), String(warehouse.get_path())]
+	if String(warehouse_path).is_empty():
+		return "warehouse_path vazio"
+	return "warehouse_path invalido (%s)" % String(warehouse_path)
+
+
+func _describe_inventory_for_block(inventory: InventoryContainer) -> String:
+	if not _policy_allows_inventory():
+		return "nao usado pela politica"
+	if inventory == null:
+		return "inventario ausente"
+	return "%s (%s)" % [String(inventory.name), String(inventory.get_path())]
+
+
+func _warehouse_amount(warehouse: Warehouse, resource_id: String) -> int:
+	if warehouse == null:
+		return 0
+	return warehouse.get_resource(resource_id)
+
+
+func _inventory_amount(inventory: InventoryContainer, resource_id: String) -> int:
+	if inventory == null:
+		return 0
+	if inventory.has_method("get_resource"):
+		return int(inventory.call("get_resource", resource_id))
+	return inventory.get_quantity(StringName(resource_id))
 
 
 func _snapshot(warehouse: Warehouse, inventory: InventoryContainer = null) -> Dictionary:

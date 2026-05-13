@@ -195,7 +195,7 @@ func _process_assist_build(order: NPCOrder, delta: float) -> int:
 		if bool(order.target_node.get("is_completed")):
 			# Concluído agora; loop vai redirecionar na próxima frame.
 			return NPCEnums.OrderStatus.RUNNING
-		return _finish(order, NPCEnums.OrderStatus.FAILED, ASSIST_BUILD_NO_RESOURCES_REASON)
+		return _finish(order, NPCEnums.OrderStatus.FAILED, _get_assist_build_block_reason(order.target_node))
 	if not order.target_node.has_method("build_step"):
 		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD failed: target does not accept build progress.")
 
@@ -203,7 +203,7 @@ func _process_assist_build(order: NPCOrder, delta: float) -> int:
 	if not success:
 		if bool(order.target_node.get("is_completed")):
 			return NPCEnums.OrderStatus.RUNNING
-		return _finish(order, NPCEnums.OrderStatus.FAILED, "ASSIST_BUILD failed: build_step returned false.")
+		return _finish(order, NPCEnums.OrderStatus.FAILED, _get_assist_build_block_reason(order.target_node))
 	# build_step retornou true; se concluído agora, loop redireciona na próxima frame.
 	if bool(order.target_node.get("is_completed")):
 		var next_site_after_build := _find_nearest_incomplete_building_site()
@@ -447,6 +447,14 @@ func _validate_build_target(order: NPCOrder) -> String:
 	return ASSIST_BUILD_NO_PENDING_REASON
 
 
+func _get_assist_build_block_reason(target: Node) -> String:
+	if is_instance_valid(target) and target.has_method("get_build_block_reason"):
+		var reason := String(target.call("get_build_block_reason", _npc))
+		if not reason.is_empty():
+			return reason
+	return ASSIST_BUILD_NO_RESOURCES_REASON
+
+
 func _start_garrison(order: NPCOrder) -> int:
 	if not is_instance_valid(order.target_node):
 		return _finish(order, NPCEnums.OrderStatus.FAILED, "GARRISON failed: target_node is invalid.")
@@ -499,10 +507,9 @@ func _get_actor_inventory() -> InventoryContainer:
 
 
 func _find_nearest_resource_pickup(resource_filter: StringName = &"") -> Node3D:
-	var root := _get_search_root()
 	var best: Node3D = null
 	var best_distance := INF
-	for node in _flatten_nodes(root):
+	for node in _npc.get_tree().get_nodes_in_group("resource_pickup"):
 		if not _is_valid_resource_pickup_for_filter(node, resource_filter):
 			continue
 		var node3d := node as Node3D
@@ -514,42 +521,30 @@ func _find_nearest_resource_pickup(resource_filter: StringName = &"") -> Node3D:
 
 
 func _find_nearest_warehouse_interactable() -> Node3D:
-	var root := _get_search_root()
-	return _find_nearest_node(root, Callable(self, "_is_operational_warehouse")) as Node3D
+	var default_warehouse := _find_nearest_group_node(&"warehouse_interactable", Callable(self, "_is_default_operational_warehouse"))
+	if default_warehouse != null:
+		return default_warehouse
+	return _find_nearest_group_node(&"warehouse_interactable", Callable(self, "_is_operational_warehouse"))
 
 
 func _find_nearest_incomplete_building_site() -> Node3D:
-	var root := _get_search_root()
-	return _find_nearest_node(root, Callable(self, "_is_valid_incomplete_building_site")) as Node3D
+	return _find_nearest_group_node(&"building_site", Callable(self, "_is_valid_incomplete_building_site"))
 
 
-func _find_nearest_node(root: Node, predicate: Callable) -> Node:
-	var best: Node = null
+func _find_nearest_group_node(group_name: StringName, predicate: Callable) -> Node3D:
+	var best: Node3D = null
 	var best_distance := INF
-	for node in _flatten_nodes(root):
+	for node in _npc.get_tree().get_nodes_in_group(group_name):
+		if not (node is Node3D):
+			continue
 		if not predicate.call(node):
 			continue
 		var node3d := node as Node3D
 		var distance := node3d.global_position.distance_to(_npc.global_position)
 		if distance < best_distance:
-			best = node
+			best = node3d
 			best_distance = distance
 	return best
-
-
-func _flatten_nodes(root: Node) -> Array[Node]:
-	var nodes: Array[Node] = []
-	if root == null:
-		return nodes
-	nodes.append(root)
-	for child in root.get_children():
-		nodes.append_array(_flatten_nodes(child))
-	return nodes
-
-
-func _get_search_root() -> Node:
-	var scene := _npc.get_tree().current_scene
-	return scene if scene != null else _npc.get_tree().root
 
 
 func _is_valid_resource_pickup(node: Variant) -> bool:
@@ -594,6 +589,15 @@ func _is_operational_warehouse(node: Node) -> bool:
 	if node.has_method("get_warehouse"):
 		return node.call("get_warehouse") is Warehouse
 	return _has_property(node, "warehouse_path")
+
+
+func _is_default_operational_warehouse(node: Node) -> bool:
+	if not _is_operational_warehouse(node):
+		return false
+	if not node.has_method("get_warehouse"):
+		return false
+	var warehouse := node.call("get_warehouse") as Warehouse
+	return warehouse != null and warehouse.warehouse_id == &"warehouse_default"
 
 
 func _is_incomplete_building_site(node: Node) -> bool:

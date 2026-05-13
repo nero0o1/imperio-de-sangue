@@ -7,6 +7,7 @@ const NAV_STUCK_CHECK_INTERVAL := 2.0
 const NAV_STUCK_MIN_PROGRESS := 0.12
 const NAV_STUCK_MAX_RECOVERY_ATTEMPTS := 2
 const NAV_STUCK_OFFSET_DISTANCE := 1.5
+const NAV_TARGET_UPDATE_THRESHOLD := 0.15
 
 @export var npc_name: String = "Civil NPC"
 @export_enum("CIVIL", "SOLDIER", "HOSTILE") var role: int = NPCEnums.Role.CIVIL
@@ -17,7 +18,7 @@ const NAV_STUCK_OFFSET_DISTANCE := 1.5
 @export var follow_distance: float = 2.0
 @export var arrival_distance: float = 0.25
 @export var selected: bool = false
-@export var debug_enabled: bool = true
+@export var debug_enabled: bool = false
 @export var idle_wander_enabled: bool = true
 @export var idle_wander_radius: float = 1.5
 @export var idle_wander_interval_min: float = 2.5
@@ -350,13 +351,14 @@ func _begin_semantic_follow(target_node: Node3D) -> void:
 func _update_semantic_follow_target(target_node: Node3D) -> void:
 	if not is_instance_valid(target_node):
 		return
-	_target_position = target_node.global_position
-	_log_navigation_target_if_changed(_target_position)
+	_set_semantic_move_target(target_node.global_position)
 
 
 func _set_semantic_move_target(destination: Vector3) -> void:
 	if _recovering_from_stuck:
 		_recovery_return_target = destination
+		return
+	if _target_position.is_finite() and _target_position.distance_to(destination) <= NAV_TARGET_UPDATE_THRESHOLD:
 		return
 	_target_position = destination
 	_recovery_return_target = destination
@@ -459,10 +461,8 @@ func _process_following(delta: float) -> void:
 		return
 
 	var direction := global_position.direction_to(target_position)
-	_target_position = target_position - direction * follow_distance
-	if _use_navigation_agent:
-		_navigation_agent.target_position = _target_position
-		_log_navigation_target_if_changed(_target_position)
+	var follow_destination := target_position - direction * follow_distance
+	_set_semantic_move_target(follow_destination)
 
 	_move_toward_position(_get_next_movement_position(), delta)
 	_update_navigation_recovery(delta)
@@ -737,7 +737,7 @@ func _node_has_navigation_region(node: Node) -> bool:
 
 
 func _log_order(message: String, order: NPCOrder = null) -> void:
-	if not debug_enabled:
+	if not debug_enabled and not _is_critical_order_log(message):
 		return
 	var suffix := ""
 	if order != null:
@@ -747,6 +747,10 @@ func _log_order(message: String, order: NPCOrder = null) -> void:
 			order.failure_reason,
 		]
 	print("[Order] %s %s%s" % [npc_name, message, suffix])
+
+
+func _is_critical_order_log(message: String) -> bool:
+	return message.find("FAILED") >= 0 or message.find("UNSUPPORTED") >= 0 or message.find("PARTIAL") >= 0
 
 
 func _log(message: String) -> void:
