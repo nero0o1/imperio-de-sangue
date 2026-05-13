@@ -70,9 +70,9 @@ Observacao de auditoria: antes do hotfix ja existiam alteracoes locais em scenes
 ## Git
 
 - Branch: hotfix-4-6-2c-manual-validation
-- Commit: fix: stabilize wave 4.6.2 manual validation blockers
-- Push: a executar apos commit
-- PR: a criar via GitHub CLI se disponivel
+- Commit principal: bf5aaac - fix: stabilize wave 4.6.2 manual validation blockers
+- Push: realizado para origin/hotfix-4-6-2c-manual-validation
+- PR: https://github.com/nero0o1/imperio-de-sangue/pull/1
 
 ## Proxima recomendacao
 
