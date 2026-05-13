@@ -84,25 +84,30 @@ surface_material_override/0 = SubResource("1_ground_mat")
 shape = SubResource("3_ground_shape")
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="." groups=["navigation_region"]]
+visible = false
 navigation_mesh = SubResource("12_navigation_mesh")
 
 [node name="MarkerNorth" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -32)
+visible = false
 mesh = SubResource("5_marker_mesh")
 surface_material_override/0 = SubResource("4_marker_mat")
 
 [node name="MarkerSouth" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 32)
+visible = false
 mesh = SubResource("5_marker_mesh")
 surface_material_override/0 = SubResource("4_marker_mat")
 
 [node name="MarkerWest" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0.03, 0)
+visible = false
 mesh = SubResource("5_marker_mesh")
 surface_material_override/0 = SubResource("4_marker_mat")
 
 [node name="MarkerEast" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0.03, 0)
+visible = false
 mesh = SubResource("5_marker_mesh")
 surface_material_override/0 = SubResource("4_marker_mat")
 

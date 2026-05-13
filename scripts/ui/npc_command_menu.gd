@@ -30,12 +30,6 @@ var _debug_status_label: Label = null
 var _debug_inv_label: Label = null
 
 # Temporários para buscas recursivas (evita passar por referência em GDScript)
-var _nearest_building_site: BuildingSite = null
-var _nearest_dist_tmp: float = INF
-var _nearest_pickup: Node3D = null
-var _nearest_pickup_dist: float = INF
-var _nearest_warehouse_interactable: Node3D = null
-var _nearest_wi_dist: float = INF
 var _nearest_garrison: Node3D = null
 var _nearest_garrison_dist: float = INF
 var _nearest_repair_target: Node3D = null

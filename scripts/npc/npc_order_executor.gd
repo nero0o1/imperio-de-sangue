@@ -130,7 +130,7 @@ func process_order(order: NPCOrder, delta: float) -> int:
 	if _npc == null or order == null:
 		return NPCEnums.OrderStatus.FAILED
 	if _consume_navigation_failure():
-		return _finish(order, NPCEnums.OrderStatus.FAILED, "Movement failed after stuck recovery attempts.")
+		return _finish(order, NPCEnums.OrderStatus.FAILED, _build_navigation_failure_reason(order, "Movement failed after stuck recovery attempts."))
 
 	match order.order_type:
 		NPCEnums.OrderType.MOVE_TO_POSITION:
@@ -254,7 +254,7 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 
 	_collector_state_elapsed += delta
 	if _collector_state_elapsed > COLLECTOR_TIMEOUT and _collector_state in [COLLECTOR_GOING_TO_GATHER, COLLECTOR_GOING_TO_DEPOSIT]:
-		return _finish(order, NPCEnums.OrderStatus.FAILED, "GATHER_RESOURCE failed: NPC bloqueado por timeout simples.")
+		return _finish(order, NPCEnums.OrderStatus.FAILED, _build_navigation_failure_reason(order, "GATHER_RESOURCE failed: NPC bloqueado por timeout simples."))
 
 	match _collector_state:
 		COLLECTOR_FINDING_RESOURCE:
@@ -632,6 +632,39 @@ func _consume_navigation_failure() -> bool:
 	if _npc != null and _npc.has_method("consume_navigation_failure"):
 		return bool(_npc.call("consume_navigation_failure"))
 	return false
+
+
+func _build_navigation_failure_reason(order: NPCOrder, prefix: String) -> String:
+	var parts: Array[String] = [prefix]
+	if order != null:
+		parts.append("ordem=%s" % NPCEnums.order_type_to_string(order.order_type))
+	parts.append("estado_coleta=%s" % _collector_state)
+	parts.append("recurso=%s" % _resource_filter_label(_collector_resource_filter))
+
+	var npc_position := Vector3.ZERO
+	if _npc != null:
+		npc_position = _npc.global_position
+		parts.append("npc_pos=%s" % str(npc_position))
+
+	var target_valid := is_instance_valid(_collector_target)
+	parts.append("alvo_valido=%s" % str(target_valid))
+	if target_valid:
+		parts.append("alvo=%s (%s)" % [String(_collector_target.name), String(_collector_target.get_path())])
+		parts.append("alvo_pos=%s" % str(_collector_target.global_position))
+		parts.append("dist=%.2f" % npc_position.distance_to(_collector_target.global_position))
+	elif order != null and is_instance_valid(order.target_node) and order.target_node is Node3D:
+		var target := order.target_node as Node3D
+		parts.append("alvo_ordem=%s (%s)" % [String(target.name), String(target.get_path())])
+		parts.append("alvo_ordem_pos=%s" % str(target.global_position))
+		parts.append("dist_ordem=%.2f" % npc_position.distance_to(target.global_position))
+	else:
+		parts.append("alvo=none")
+
+	var nav_regions := 0
+	if _npc != null and _npc.get_tree() != null:
+		nav_regions = _npc.get_tree().get_nodes_in_group("navigation_region").size()
+	parts.append("navigation_regions=%d" % nav_regions)
+	return " ".join(parts)
 
 
 func _resource_filter_label(resource_filter: StringName) -> String:

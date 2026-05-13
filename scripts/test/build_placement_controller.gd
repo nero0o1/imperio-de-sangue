@@ -20,12 +20,14 @@ const BuildingPlacementPreviewScript = preload("res://scripts/building/building_
 @export var min_distance_from_existing_buildings: float = 2.0
 @export var max_navigation_snap_distance: float = 1.5
 @export var placement_validation_interval: float = 0.08
+@export var placement_debug_enabled: bool = true
 
 var _is_placing: bool = false
 var _current_rotation_y: float = 0.0
 var _current_position: Vector3 = Vector3.ZERO
 var _current_is_valid: bool = false
 var _current_invalid_reason: String = ""
+var _current_invalid_debug: String = ""
 var _current_building_id: StringName = &""
 var _current_display_name: String = ""
 var _current_scene: PackedScene = null
@@ -33,6 +35,7 @@ var _current_footprint_size: Vector3 = Vector3.ZERO
 var _preview: Node3D = null
 var _last_reported_reason: String = ""
 var _placement_validation_elapsed: float = 0.0
+var _last_ground_probe: Dictionary = {}
 
 @onready var _player: Node3D = get_node_or_null(player_path) as Node3D
 @onready var _build_menu: Node = get_node_or_null(build_menu_path)
@@ -134,6 +137,8 @@ func try_confirm_placement() -> bool:
 	if not _current_is_valid:
 		print("[BuildMode] construção bloqueada: %s" % _current_invalid_reason)
 		print("[BUILD] Nao foi possivel posicionar %s: %s." % [_current_display_name, _current_invalid_reason])
+		if placement_debug_enabled and not _current_invalid_debug.is_empty():
+			print("[BuildMode] diagnostico: %s" % _current_invalid_debug)
 		return true
 
 	var instance := _current_scene.instantiate()
@@ -210,6 +215,7 @@ func _update_current_target() -> void:
 	var validation := _validate_current_target()
 	_current_is_valid = bool(validation.get("valid", false))
 	_current_invalid_reason = String(validation.get("reason", ""))
+	_current_invalid_debug = String(validation.get("debug", ""))
 
 	if validation.has("position"):
 		_current_position = validation["position"]
@@ -227,6 +233,7 @@ func _validate_current_target() -> Dictionary:
 		return {
 			"valid": false,
 			"reason": "sem_chao_valido",
+			"debug": _format_ground_probe_debug(result),
 		}
 
 	var placement_position: Vector3 = result["position"]
@@ -303,7 +310,16 @@ func _raycast_ground() -> Dictionary:
 	query.exclude = _get_raycast_exclusions()
 	query.collide_with_areas = false
 	query.collide_with_bodies = true
-	return get_world_3d().direct_space_state.intersect_ray(query)
+	var result := get_world_3d().direct_space_state.intersect_ray(query)
+	_last_ground_probe = {
+		"from": from,
+		"to": to,
+		"collision_mask": query.collision_mask,
+		"collide_with_areas": query.collide_with_areas,
+		"collide_with_bodies": query.collide_with_bodies,
+		"hit": not result.is_empty(),
+	}
+	return result
 
 
 func _get_player_camera() -> Camera3D:
@@ -336,6 +352,37 @@ func _is_valid_ground_hit(result: Dictionary) -> bool:
 		return collider_node.is_in_group("movement_ground") or String(collider_node.name).contains("Ground")
 
 	return false
+
+
+func _format_ground_probe_debug(result: Dictionary) -> String:
+	if _last_ground_probe.is_empty():
+		return "raycast sem camera/world disponivel"
+
+	var parts: Array[String] = [
+		"from=%s" % str(_last_ground_probe.get("from", Vector3.ZERO)),
+		"to=%s" % str(_last_ground_probe.get("to", Vector3.ZERO)),
+		"mask=%s" % str(_last_ground_probe.get("collision_mask", 0)),
+		"areas=%s" % str(_last_ground_probe.get("collide_with_areas", false)),
+		"bodies=%s" % str(_last_ground_probe.get("collide_with_bodies", true)),
+	]
+
+	if result.is_empty():
+		parts.append("hit=none")
+		return ", ".join(parts)
+
+	var collider: Variant = result.get("collider")
+	var collider_label := str(collider)
+	var collider_groups := ""
+	if collider is Node:
+		var collider_node := collider as Node
+		collider_label = "%s (%s)" % [String(collider_node.name), String(collider_node.get_path())]
+		collider_groups = str(collider_node.get_groups())
+
+	parts.append("hit=%s" % collider_label)
+	parts.append("hit_position=%s" % str(result.get("position", Vector3.ZERO)))
+	parts.append("groups=%s" % collider_groups)
+	parts.append("movement_ground=%s" % str(collider is Node and (collider as Node).is_in_group("movement_ground")))
+	return ", ".join(parts)
 
 
 func _is_inside_bounds(placement_position: Vector3) -> bool:
@@ -694,6 +741,8 @@ func _report_validation_state() -> void:
 	else:
 		print("[BuildMode] preview inválido: %s" % _current_invalid_reason)
 		print("[BUILD] Local invalido: %s." % _current_invalid_reason)
+		if placement_debug_enabled and not _current_invalid_debug.is_empty():
+			print("[BuildMode] diagnostico: %s" % _current_invalid_debug)
 
 
 func _is_valid_population_manager(node: Variant) -> bool:
@@ -718,6 +767,7 @@ func _clear_preview() -> void:
 	_is_placing = false
 	_current_is_valid = false
 	_current_invalid_reason = ""
+	_current_invalid_debug = ""
 	_current_building_id = &""
 	_current_display_name = ""
 	_current_scene = null
