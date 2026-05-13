@@ -1,0 +1,66 @@
+﻿diff --git a/scenes/test/NPCWave4OrderIntegrationTest.tscn b/scenes/test/NPCWave4OrderIntegrationTest.tscn
+index b049133..99371b5 100644
+--- a/scenes/test/NPCWave4OrderIntegrationTest.tscn
++++ b/scenes/test/NPCWave4OrderIntegrationTest.tscn
+@@ -109,7 +109,7 @@ surface_material_override/0 = SubResource("4_marker_mat")
+ [node name="InstructionLabel" type="Label3D" parent="."]
+ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 15)
+ billboard = 1
+-text = "Wave 4.6 - Teste de Ordens Semanticas\nOlhe para um NPC e pressione E para selecionar e abrir o menu.\nCaixa azul escura = Armazem interagivel. Caixas marrons = Madeira. Cinzas = Pedra."
++text = "Wave 4.6 - Teste de Ordens Semanticas\nControles:  H = abrir construcao  |  R = rotacionar  |  Enter = confirmar  |  Esc = cancelar\nI = HUD/inventario  |  E = interagir/selecionar NPC\nCaixa azul escura = Armazem interagivel. Caixas marrons = Madeira. Cinzas = Pedra."
+ font_size = 28
+ outline_size = 8
+ 
+diff --git a/scripts/test/build_placement_controller.gd b/scripts/test/build_placement_controller.gd
+index 7eeaa1b..3b60834 100644
+--- a/scripts/test/build_placement_controller.gd
++++ b/scripts/test/build_placement_controller.gd
+@@ -468,17 +468,23 @@ func _merge_resource_snapshot(target: Dictionary, source: Variant) -> void:
+ 
+ 
+ func _resolve_warehouse() -> Warehouse:
+-	var parent := get_parent()
+-	if parent == null:
+-		return null
+ 	if not String(warehouse_path).is_empty():
+-		var explicit := parent.get_node_or_null(warehouse_path)
++		# Resolve relative to self: paths like "../Warehouse" are exported
++		# from the BuildPlacementController, not from its parent.
++		var explicit := get_node_or_null(warehouse_path)
+ 		if explicit is Warehouse:
+ 			return explicit
++		# Fallback: try from parent in case the path was authored differently.
++		var parent := get_parent()
++		if parent != null:
++			var from_parent := parent.get_node_or_null(warehouse_path)
++			if from_parent is Warehouse:
++				return from_parent
+ 	for node in get_tree().get_nodes_in_group("warehouse"):
+ 		if node is Warehouse:
+ 			return node
+-	return _find_first_child_of_type(parent, "Warehouse") as Warehouse
++	var scan_parent := get_parent()
++	return _find_first_child_of_type(scan_parent, "Warehouse") as Warehouse
+ 
+ 
+ func _resolve_player_inventory() -> InventoryContainer:
+@@ -612,11 +618,16 @@ func _node_matches_type(node: Node, class_name_to_find: String) -> bool:
+ 
+ 
+ func _make_relative_path(from_node: Node, target_path: NodePath) -> NodePath:
+-	var parent := get_parent()
+-	if parent == null or String(target_path).is_empty():
++	if String(target_path).is_empty():
+ 		return target_path
+ 
+-	var target := parent.get_node_or_null(target_path)
++	# Try resolving relative to self first (paths exported from this node).
++	var target := get_node_or_null(target_path)
++	if target == null:
++		# Fallback: resolve from parent for legacy path authoring.
++		var parent := get_parent()
++		if parent != null:
++			target = parent.get_node_or_null(target_path)
+ 	if target == null:
+ 		return NodePath("")
+ 

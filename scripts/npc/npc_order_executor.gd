@@ -269,6 +269,7 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 			_npc._begin_semantic_move(_collector_target.global_position, NPCTacticalState.MOVING)
 		COLLECTOR_GOING_TO_GATHER:
 			if not _is_valid_resource_pickup_for_filter(_collector_target, _collector_resource_filter):
+				_collector_target = null
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 				return NPCEnums.OrderStatus.RUNNING
 			_npc._set_semantic_move_target(_collector_target.global_position)
@@ -276,6 +277,7 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 				_set_collector_state(COLLECTOR_COLLECTING)
 		COLLECTOR_COLLECTING:
 			if not _is_valid_resource_pickup_for_filter(_collector_target, _collector_resource_filter):
+				_collector_target = null
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 				return NPCEnums.OrderStatus.RUNNING
 			_npc.tactical_state.blocks_auto_movement = true
@@ -550,20 +552,28 @@ func _get_search_root() -> Node:
 	return scene if scene != null else _npc.get_tree().root
 
 
-func _is_valid_resource_pickup(node: Node) -> bool:
+func _is_valid_resource_pickup(node: Variant) -> bool:
 	return _is_valid_resource_pickup_for_filter(node, &"")
 
 
-func _is_valid_resource_pickup_for_filter(node: Node, resource_filter: StringName) -> bool:
-	if not is_instance_valid(node) or not (node is Node3D):
+func _is_valid_resource_pickup_for_filter(node: Variant, resource_filter: StringName) -> bool:
+	if node == null:
 		return false
-	if not (_has_property(node, "resource_id") and _has_property(node, "amount") and node.has_method("interact")):
+
+	var object := node as Object
+	if object == null or not is_instance_valid(object):
 		return false
-	if int(node.get("amount")) <= 0:
+
+	var node_ref := object as Node
+	if node_ref == null or not (node_ref is Node3D):
+		return false
+	if not (_has_property(node_ref, "resource_id") and _has_property(node_ref, "amount") and node_ref.has_method("interact")):
+		return false
+	if int(node_ref.get("amount")) <= 0:
 		return false
 	# Aplica filtro de tipo: só aceita pickup se o resource_id coincidir com o filtro ativo.
 	if resource_filter != &"":
-		return StringName(String(node.get("resource_id"))) == resource_filter
+		return StringName(String(node_ref.get("resource_id"))) == resource_filter
 	return true
 
 
