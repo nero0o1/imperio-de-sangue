@@ -9,6 +9,7 @@ const REPAIR_INTERACTION_DISTANCE := 2.25
 const REPAIR_STEP_INTERVAL := 1.0
 const REPAIR_AMOUNT_PER_STEP := 10.0
 const COLLECTOR_TIMEOUT := 20.0
+const COLLECTOR_WAREHOUSE_RETRY_LIMIT := 2
 const RESOURCE_TARGET_BLACKLIST_SECONDS := 10.0
 const PATROL_FALLBACK_OFFSET := Vector3(4.0, 0.0, 0.0)
 const FOLLOW_TARGET_LOST_REASON := "FOLLOW_TARGET failed: target node is no longer valid."
@@ -29,6 +30,10 @@ var _collector_target: Node3D = null
 var _collector_warehouse: Node3D = null
 var _collector_failed_targets: Dictionary = {}
 var _collector_last_candidate_report: Dictionary = {}
+var _collector_warehouse_retry_count: int = 0
+var _collector_interaction_target_position: Vector3 = Vector3.ZERO
+var _collector_interaction_target_valid: bool = false
+var _collector_interaction_target_node_id: int = 0
 var _patrol_points: Array[Vector3] = []
 var _patrol_index: int = 0
 var _repair_step_elapsed: float = 0.0
@@ -133,8 +138,11 @@ func process_order(order: NPCOrder, delta: float) -> int:
 	if _npc == null or order == null:
 		return NPCEnums.OrderStatus.FAILED
 	if _consume_navigation_failure():
-		if order.order_type == NPCEnums.OrderType.GATHER_RESOURCE and _collector_state == COLLECTOR_GOING_TO_GATHER:
-			return _handle_gather_target_unreachable(order, "Movement failed after stuck recovery attempts.")
+		if order.order_type == NPCEnums.OrderType.GATHER_RESOURCE:
+			if _collector_state == COLLECTOR_GOING_TO_GATHER:
+				return _handle_gather_target_unreachable(order, "Movement failed after stuck recovery attempts.")
+			if _collector_state == COLLECTOR_GOING_TO_DEPOSIT:
+				return _handle_gather_warehouse_unreachable(order, "Movement failed after stuck recovery attempts.")
 		return _finish(order, NPCEnums.OrderStatus.FAILED, _build_navigation_failure_reason(order, "Movement failed after stuck recovery attempts."))
 
 	match order.order_type:
@@ -232,9 +240,6 @@ func _start_gather_resource(order: NPCOrder) -> int:
 
 	_collector_target = null
 	if _is_valid_resource_pickup_for_filter(order.target_node, &""):
-		var target_resource := StringName(String(order.target_node.get("resource_id")))
-		if _collector_resource_filter == &"":
-			_collector_resource_filter = target_resource
 		if _is_valid_resource_pickup_for_filter(order.target_node, _collector_resource_filter):
 			var initial_target := order.target_node as Node3D
 			if _is_resource_pickup_reserved_by_other(initial_target):
@@ -250,7 +255,7 @@ func _start_gather_resource(order: NPCOrder) -> int:
 		_set_collector_state(COLLECTOR_GOING_TO_DEPOSIT)
 	elif _collector_target != null:
 		_set_collector_state(COLLECTOR_GOING_TO_GATHER)
-		_begin_move_to_interaction_target(_collector_target, GATHER_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
+		_begin_collector_move_to_interaction_target(_collector_target, GATHER_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
 	else:
 		_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 	return NPCEnums.OrderStatus.RUNNING
@@ -265,7 +270,7 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 	if _collector_state_elapsed > COLLECTOR_TIMEOUT and _collector_state in [COLLECTOR_GOING_TO_GATHER, COLLECTOR_GOING_TO_DEPOSIT]:
 		if _collector_state == COLLECTOR_GOING_TO_GATHER:
 			return _handle_gather_target_unreachable(order, "GATHER_RESOURCE target skipped: NPC blocked by movement timeout.")
-		return _finish(order, NPCEnums.OrderStatus.FAILED, _build_navigation_failure_reason(order, "GATHER_RESOURCE failed: NPC bloqueado por timeout simples."))
+		return _handle_gather_warehouse_unreachable(order, "GATHER_RESOURCE warehouse route blocked by movement timeout.")
 
 	match _collector_state:
 		COLLECTOR_FINDING_RESOURCE:
@@ -277,14 +282,14 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 			if _collector_target == null:
 				return _finish_gather_without_candidate(order)
 			_set_collector_state(COLLECTOR_GOING_TO_GATHER)
-			_begin_move_to_interaction_target(_collector_target, GATHER_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
+			_begin_collector_move_to_interaction_target(_collector_target, GATHER_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
 		COLLECTOR_GOING_TO_GATHER:
 			if not _is_valid_resource_pickup_for_filter(_collector_target, _collector_resource_filter):
 				_release_collector_target()
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 				return NPCEnums.OrderStatus.RUNNING
-			_set_move_target_for_interaction(_collector_target, GATHER_INTERACTION_DISTANCE)
-			if _npc._is_within_horizontal_distance(_collector_target.global_position, GATHER_INTERACTION_DISTANCE):
+			_set_collector_move_target_for_interaction(_collector_target, GATHER_INTERACTION_DISTANCE)
+			if _is_within_collector_interaction_distance(_collector_target, GATHER_INTERACTION_DISTANCE):
 				_set_collector_state(COLLECTOR_COLLECTING)
 		COLLECTOR_COLLECTING:
 			if not _is_valid_resource_pickup_for_filter(_collector_target, _collector_resource_filter):
@@ -302,16 +307,15 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
 			else:
 				_npc._log("Indo depositar recurso: %s" % _resource_filter_label(_collector_resource_filter))
+				_collector_warehouse_retry_count = 0
 				_set_collector_state(COLLECTOR_GOING_TO_DEPOSIT)
 		COLLECTOR_GOING_TO_DEPOSIT:
-			_collector_warehouse = _find_nearest_warehouse_interactable()
+			if not _is_valid_warehouse_interactable(_collector_warehouse):
+				_collector_warehouse = _find_nearest_warehouse_interactable()
 			if _collector_warehouse == null:
 				return _finish(order, NPCEnums.OrderStatus.FAILED, "Coleta encerrada: nenhum armazem valido encontrado.")
-			if _collector_state_elapsed <= delta + 0.0001:
-				_begin_move_to_interaction_target(_collector_warehouse, DROP_INTERACTION_DISTANCE, NPCTacticalState.MOVING)
-			else:
-				_set_move_target_for_interaction(_collector_warehouse, DROP_INTERACTION_DISTANCE)
-			if _npc._is_within_horizontal_distance(_collector_warehouse.global_position, DROP_INTERACTION_DISTANCE):
+			_set_collector_move_target_for_interaction(_collector_warehouse, DROP_INTERACTION_DISTANCE)
+			if _is_within_collector_interaction_distance(_collector_warehouse, DROP_INTERACTION_DISTANCE):
 				_set_collector_state(COLLECTOR_DEPOSITING)
 		COLLECTOR_DEPOSITING:
 			if inv.is_empty():
@@ -324,8 +328,7 @@ func _process_gather_resource(order: NPCOrder, delta: float) -> int:
 			_collector_warehouse.call("interact", _npc)
 			_npc.tactical_state.blocks_auto_movement = false
 			if inv.is_empty():
-				_npc._log("Deposito concluido; voltando a coletar: %s" % _resource_filter_label(_collector_resource_filter))
-				_set_collector_state(COLLECTOR_FINDING_RESOURCE)
+				return _continue_gather_after_deposit(order)
 			else:
 				return _finish(order, NPCEnums.OrderStatus.FAILED, "Coleta encerrada: armazem nao aceitou todos os recursos.")
 		_:
@@ -453,6 +456,41 @@ func _set_move_target_for_interaction(target: Node3D, interaction_distance: floa
 	_npc._set_semantic_move_target(_get_approach_position_for_target(target, interaction_distance))
 
 
+func _begin_collector_move_to_interaction_target(target: Node3D, interaction_distance: float, tactical: String) -> void:
+	if not is_instance_valid(target):
+		return
+	_collector_interaction_target_position = _get_approach_position_for_target(target, interaction_distance)
+	_collector_interaction_target_valid = true
+	_collector_interaction_target_node_id = target.get_instance_id()
+	_npc._log("GATHER_RESOURCE navigation target: alvo=%s pos=%s distancia_interacao=%.2f estado=%s" % [String(target.name), str(_collector_interaction_target_position), interaction_distance, _collector_state])
+	_npc._begin_semantic_move(_collector_interaction_target_position, tactical)
+
+
+func _set_collector_move_target_for_interaction(target: Node3D, interaction_distance: float) -> void:
+	if not is_instance_valid(target):
+		return
+	if not _collector_interaction_target_valid or _collector_interaction_target_node_id != target.get_instance_id():
+		_begin_collector_move_to_interaction_target(target, interaction_distance, NPCTacticalState.MOVING)
+		return
+	_npc._set_semantic_move_target(_collector_interaction_target_position)
+
+
+func _is_within_collector_interaction_distance(target: Node3D, interaction_distance: float) -> bool:
+	if not is_instance_valid(target):
+		return false
+	if _npc._is_within_horizontal_distance(target.global_position, interaction_distance):
+		return true
+	if _collector_interaction_target_valid and _npc._is_within_horizontal_distance(_collector_interaction_target_position, maxf(_npc.arrival_distance, 0.35)):
+		return true
+	return false
+
+
+func _clear_collector_interaction_target() -> void:
+	_collector_interaction_target_position = Vector3.ZERO
+	_collector_interaction_target_valid = false
+	_collector_interaction_target_node_id = 0
+
+
 func _get_approach_position_for_target(target: Node3D, interaction_distance: float) -> Vector3:
 	if _npc == null or not is_instance_valid(target):
 		return Vector3.ZERO
@@ -531,7 +569,9 @@ func _reset_runtime_state() -> void:
 	_collector_state_elapsed = 0.0
 	_release_collector_target()
 	_collector_warehouse = null
+	_clear_collector_interaction_target()
 	_collector_resource_filter = &""
+	_collector_warehouse_retry_count = 0
 	_collector_failed_targets.clear()
 	_collector_last_candidate_report.clear()
 	_patrol_points.clear()
@@ -540,9 +580,25 @@ func _reset_runtime_state() -> void:
 
 
 func _set_collector_state(state: String) -> void:
+	if _collector_state != state:
+		_clear_collector_interaction_target()
 	_collector_state = state
 	_collector_state_elapsed = 0.0
 	_npc.tactical_state.set_state(state)
+
+
+func _continue_gather_after_deposit(order: NPCOrder) -> int:
+	_collector_warehouse = null
+	_collector_warehouse_retry_count = 0
+	_release_collector_target()
+	_npc._log("GATHER_RESOURCE deposit success: recurso=%s decisao=varrer_proximo" % _resource_filter_label(_collector_resource_filter))
+	_set_collector_state(COLLECTOR_FINDING_RESOURCE)
+	var candidates := _get_resource_pickup_candidates(_collector_resource_filter)
+	_log_resource_candidate_report(_collector_resource_filter)
+	if candidates.is_empty():
+		return _finish_gather_without_candidate(order)
+	_npc._log("GATHER_RESOURCE continuing same order after deposit: recurso=%s candidatos=%d" % [_resource_filter_label(_collector_resource_filter), candidates.size()])
+	return NPCEnums.OrderStatus.RUNNING
 
 
 func _get_actor_inventory() -> InventoryContainer:
@@ -683,6 +739,26 @@ func _handle_gather_target_unreachable(order: NPCOrder, prefix: String) -> int:
 		return _finish_gather_without_candidate(order)
 	_npc._log("GATHER_RESOURCE trying next target after skip: recurso=%s candidatos=%d" % [_resource_filter_label(_collector_resource_filter), candidates.size()])
 	return NPCEnums.OrderStatus.RUNNING
+
+
+func _handle_gather_warehouse_unreachable(order: NPCOrder, prefix: String) -> int:
+	var reason := _build_navigation_failure_reason(order, prefix)
+	_collector_warehouse_retry_count += 1
+	_collector_warehouse = null
+	_clear_collector_interaction_target()
+	_npc.tactical_state.blocks_auto_movement = false
+	_collector_state = COLLECTOR_GOING_TO_DEPOSIT
+	_collector_state_elapsed = 0.0
+	_npc.tactical_state.set_state(COLLECTOR_GOING_TO_DEPOSIT)
+	_npc._log("GATHER_RESOURCE warehouse route recovery: recurso=%s tentativa=%d/%d motivo=%s" % [
+		_resource_filter_label(_collector_resource_filter),
+		_collector_warehouse_retry_count,
+		COLLECTOR_WAREHOUSE_RETRY_LIMIT,
+		reason,
+	])
+	if _collector_warehouse_retry_count <= COLLECTOR_WAREHOUSE_RETRY_LIMIT:
+		return NPCEnums.OrderStatus.RUNNING
+	return _finish(order, NPCEnums.OrderStatus.FAILED, "GATHER_RESOURCE failed: armazem inacessivel apos recuperacao de rota. %s" % reason)
 
 
 func _finish_gather_without_candidate(order: NPCOrder) -> int:

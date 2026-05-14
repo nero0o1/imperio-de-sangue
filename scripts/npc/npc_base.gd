@@ -521,20 +521,20 @@ func consume_navigation_failure() -> bool:
 	return true
 
 
-func project_position_to_navigation(position: Vector3) -> Vector3:
-	if not position.is_finite():
-		return position
+func project_position_to_navigation(world_position: Vector3) -> Vector3:
+	if not world_position.is_finite():
+		return world_position
 	if not _use_navigation_agent:
-		return position
+		return world_position
 	var world := get_world_3d()
 	if world == null:
-		return position
+		return world_position
 	var navigation_map := world.get_navigation_map()
 	if not navigation_map.is_valid():
-		return position
-	var closest_point := NavigationServer3D.map_get_closest_point(navigation_map, position)
+		return world_position
+	var closest_point := NavigationServer3D.map_get_closest_point(navigation_map, world_position)
 	if not closest_point.is_finite():
-		return position
+		return world_position
 	return closest_point
 
 
@@ -561,6 +561,9 @@ func get_navigation_debug_context(target_node: Node3D = null) -> String:
 	parts.append("nav_ativo=%s" % str(_use_navigation_agent))
 	parts.append("navigation_regions=%d" % get_navigation_region_count())
 	parts.append("tentativas_stuck=%d/%d" % [_stuck_repath_attempts, NAV_STUCK_MAX_RECOVERY_ATTEMPTS])
+	if _navigation_agent != null:
+		parts.append("nav_finished=%s" % str(_navigation_agent.is_navigation_finished()))
+		parts.append("next_path_pos=%s" % str(_navigation_agent.get_next_path_position()))
 	if _target_position.is_finite():
 		parts.append("dist_destino=%.2f" % global_position.distance_to(_target_position))
 	if is_instance_valid(target_node):
@@ -694,13 +697,13 @@ func _find_navigation_recovery_target() -> Vector3:
 	var lateral := _get_nearby_npc_avoidance_direction()
 	if lateral.length() <= 0.001:
 		lateral = Vector3(-to_target.z, 0.0, to_target.x).normalized()
-	var sign := 1.0 if _stuck_repath_attempts % 2 == 1 else -1.0
+	var direction_sign := 1.0 if _stuck_repath_attempts % 2 == 1 else -1.0
 	var offset := NAV_STUCK_OFFSET_DISTANCE
 	var candidates: Array[Vector3] = [
-		global_position + lateral * offset * sign,
+		global_position + lateral * offset * direction_sign,
 		_target_position - to_target * offset,
-		_target_position + lateral * offset * sign,
-		_target_position - lateral * offset * sign,
+		_target_position + lateral * offset * direction_sign,
+		_target_position - lateral * offset * direction_sign,
 	]
 
 	var best := Vector3(INF, INF, INF)
@@ -718,7 +721,7 @@ func _find_navigation_recovery_target() -> Vector3:
 
 	if best.is_finite():
 		return best
-	return global_position + lateral * offset * sign
+	return global_position + lateral * offset * direction_sign
 
 
 func _arrive_at_destination() -> void:
