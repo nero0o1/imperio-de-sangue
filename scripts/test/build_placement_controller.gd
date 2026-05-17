@@ -19,18 +19,26 @@ const BuildingPlacementPreviewScript = preload("res://scripts/building/building_
 @export var min_distance_from_player: float = 2.0
 @export var min_distance_from_existing_buildings: float = 2.0
 @export var max_navigation_snap_distance: float = 1.5
+@export var placement_validation_interval: float = 0.08
+@export var placement_debug_enabled: bool = false
 
 var _is_placing: bool = false
 var _current_rotation_y: float = 0.0
 var _current_position: Vector3 = Vector3.ZERO
 var _current_is_valid: bool = false
 var _current_invalid_reason: String = ""
+var _current_invalid_debug: String = ""
 var _current_building_id: StringName = &""
 var _current_display_name: String = ""
 var _current_scene: PackedScene = null
 var _current_footprint_size: Vector3 = Vector3.ZERO
+var _current_required_resources: Dictionary = {}
+var _current_initial_completed_state: bool = false
 var _preview: Node3D = null
 var _last_reported_reason: String = ""
+var _placement_validation_elapsed: float = 0.0
+var _last_ground_probe: Dictionary = {}
+var _building_scene_config_cache: Dictionary = {}
 
 @onready var _player: Node3D = get_node_or_null(player_path) as Node3D
 @onready var _build_menu: Node = get_node_or_null(build_menu_path)
@@ -41,8 +49,12 @@ func _ready() -> void:
 	_connect_build_menu()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _is_placing:
+		return
+
+	_placement_validation_elapsed += delta
+	if _placement_validation_elapsed < placement_validation_interval:
 		return
 
 	_update_current_target()
@@ -99,6 +111,8 @@ func begin_placement(building_id: StringName) -> void:
 	_current_display_name = String(config["display_name"])
 	_current_scene = config["scene"] as PackedScene
 	_current_footprint_size = config["footprint_size"]
+	_current_required_resources = (config["required_resources"] as Dictionary).duplicate(true)
+	_current_initial_completed_state = bool(config["initial_completed_state"])
 	_is_placing = true
 	_current_rotation_y = 0.0
 	_last_reported_reason = ""
@@ -106,6 +120,7 @@ func begin_placement(building_id: StringName) -> void:
 	_preview.name = "BuildingPlacementPreview"
 	_preview.set("footprint_size", _current_footprint_size)
 	add_child(_preview)
+	_placement_validation_elapsed = placement_validation_interval
 	_update_current_target()
 	print("[BUILD] Posicionamento de %s iniciado." % _current_display_name)
 
@@ -127,6 +142,8 @@ func try_confirm_placement() -> bool:
 	if not _current_is_valid:
 		print("[BuildMode] construção bloqueada: %s" % _current_invalid_reason)
 		print("[BUILD] Nao foi possivel posicionar %s: %s." % [_current_display_name, _current_invalid_reason])
+		if placement_debug_enabled and not _current_invalid_debug.is_empty():
+			print("[BuildMode] diagnostico: %s" % _current_invalid_debug)
 		return true
 
 	var instance := _current_scene.instantiate()
@@ -177,20 +194,46 @@ func _get_building_config(building_id: StringName) -> Dictionary:
 		&"warehouse":
 			if buildable_warehouse_scene == null:
 				return {}
+			var warehouse_scene_config := _get_cached_scene_building_config(building_id, buildable_warehouse_scene)
 			return {
 				"display_name": "Armazém",
 				"scene": buildable_warehouse_scene,
 				"footprint_size": warehouse_footprint_size,
+				"required_resources": warehouse_scene_config["required_resources"],
+				"initial_completed_state": warehouse_scene_config["initial_completed_state"],
 			}
 		&"civil_house":
 			if buildable_civil_house_scene == null:
 				return {}
+			var civil_house_scene_config := _get_cached_scene_building_config(building_id, buildable_civil_house_scene)
 			return {
 				"display_name": "Casa Civil",
 				"scene": buildable_civil_house_scene,
 				"footprint_size": civil_house_footprint_size,
+				"required_resources": civil_house_scene_config["required_resources"],
+				"initial_completed_state": civil_house_scene_config["initial_completed_state"],
 			}
 	return {}
+
+
+func _get_cached_scene_building_config(building_id: StringName, scene: PackedScene) -> Dictionary:
+	if _building_scene_config_cache.has(building_id):
+		return (_building_scene_config_cache[building_id] as Dictionary).duplicate(true)
+
+	var config := {
+		"required_resources": {},
+		"initial_completed_state": false,
+	}
+	var probe := scene.instantiate()
+	var site := _find_first_child_of_type(probe, "BuildingSite") as BuildingSite
+	if site != null:
+		var required_value: Variant = site.get("required_resources")
+		if required_value is Dictionary:
+			config["required_resources"] = (required_value as Dictionary).duplicate(true)
+		config["initial_completed_state"] = bool(site.get("is_completed"))
+	probe.queue_free()
+	_building_scene_config_cache[building_id] = config.duplicate(true)
+	return config
 
 
 func _rotate_preview() -> void:
@@ -199,9 +242,11 @@ func _rotate_preview() -> void:
 
 
 func _update_current_target() -> void:
+	_placement_validation_elapsed = 0.0
 	var validation := _validate_current_target()
 	_current_is_valid = bool(validation.get("valid", false))
 	_current_invalid_reason = String(validation.get("reason", ""))
+	_current_invalid_debug = String(validation.get("debug", ""))
 
 	if validation.has("position"):
 		_current_position = validation["position"]
@@ -219,6 +264,7 @@ func _validate_current_target() -> Dictionary:
 		return {
 			"valid": false,
 			"reason": "sem_chao_valido",
+			"debug": _format_ground_probe_debug(result),
 		}
 
 	var placement_position: Vector3 = result["position"]
@@ -295,7 +341,16 @@ func _raycast_ground() -> Dictionary:
 	query.exclude = _get_raycast_exclusions()
 	query.collide_with_areas = false
 	query.collide_with_bodies = true
-	return get_world_3d().direct_space_state.intersect_ray(query)
+	var result := get_world_3d().direct_space_state.intersect_ray(query)
+	_last_ground_probe = {
+		"from": from,
+		"to": to,
+		"collision_mask": query.collision_mask,
+		"collide_with_areas": query.collide_with_areas,
+		"collide_with_bodies": query.collide_with_bodies,
+		"hit": not result.is_empty(),
+	}
+	return result
 
 
 func _get_player_camera() -> Camera3D:
@@ -328,6 +383,37 @@ func _is_valid_ground_hit(result: Dictionary) -> bool:
 		return collider_node.is_in_group("movement_ground") or String(collider_node.name).contains("Ground")
 
 	return false
+
+
+func _format_ground_probe_debug(result: Dictionary) -> String:
+	if _last_ground_probe.is_empty():
+		return "raycast sem camera/world disponivel"
+
+	var parts: Array[String] = [
+		"from=%s" % str(_last_ground_probe.get("from", Vector3.ZERO)),
+		"to=%s" % str(_last_ground_probe.get("to", Vector3.ZERO)),
+		"mask=%s" % str(_last_ground_probe.get("collision_mask", 0)),
+		"areas=%s" % str(_last_ground_probe.get("collide_with_areas", false)),
+		"bodies=%s" % str(_last_ground_probe.get("collide_with_bodies", true)),
+	]
+
+	if result.is_empty():
+		parts.append("hit=none")
+		return ", ".join(parts)
+
+	var collider: Variant = result.get("collider")
+	var collider_label := str(collider)
+	var collider_groups := ""
+	if collider is Node:
+		var collider_node := collider as Node
+		collider_label = "%s (%s)" % [String(collider_node.name), String(collider_node.get_path())]
+		collider_groups = str(collider_node.get_groups())
+
+	parts.append("hit=%s" % collider_label)
+	parts.append("hit_position=%s" % str(result.get("position", Vector3.ZERO)))
+	parts.append("groups=%s" % collider_groups)
+	parts.append("movement_ground=%s" % str(collider is Node and (collider as Node).is_in_group("movement_ground")))
+	return ", ".join(parts)
 
 
 func _is_inside_bounds(placement_position: Vector3) -> bool:
@@ -393,13 +479,9 @@ func _get_system_invalid_reason() -> String:
 func _get_building_state_invalid_reason() -> String:
 	if _current_scene == null:
 		return "build controller ausente"
-	var probe := _current_scene.instantiate()
-	var site := _find_first_child_of_type(probe, "BuildingSite") as BuildingSite
-	var reason := ""
-	if site != null and bool(site.get("is_completed")):
-		reason = "construcao ja concluida"
-	probe.queue_free()
-	return reason
+	if _current_initial_completed_state:
+		return "construcao ja concluida"
+	return ""
 
 
 func _get_navigation_invalid_reason(placement_position: Vector3) -> String:
@@ -428,15 +510,7 @@ func _get_resource_invalid_reason() -> String:
 func _get_required_resources_for_current_building() -> Dictionary:
 	if _current_scene == null:
 		return {}
-	var probe := _current_scene.instantiate()
-	var site := _find_first_child_of_type(probe, "BuildingSite") as BuildingSite
-	var required := {}
-	if site != null:
-		var value: Variant = site.get("required_resources")
-		if value is Dictionary:
-			required = (value as Dictionary).duplicate(true)
-	probe.queue_free()
-	return required
+	return _current_required_resources.duplicate(true)
 
 
 func _has_resources_available(required: Dictionary) -> bool:
@@ -468,17 +542,23 @@ func _merge_resource_snapshot(target: Dictionary, source: Variant) -> void:
 
 
 func _resolve_warehouse() -> Warehouse:
-	var parent := get_parent()
-	if parent == null:
-		return null
 	if not String(warehouse_path).is_empty():
-		var explicit := parent.get_node_or_null(warehouse_path)
+		# Resolve relative to self: paths like "../Warehouse" are exported
+		# from the BuildPlacementController, not from its parent.
+		var explicit := get_node_or_null(warehouse_path)
 		if explicit is Warehouse:
 			return explicit
+		# Fallback: try from parent in case the path was authored differently.
+		var parent := get_parent()
+		if parent != null:
+			var from_parent := parent.get_node_or_null(warehouse_path)
+			if from_parent is Warehouse:
+				return from_parent
 	for node in get_tree().get_nodes_in_group("warehouse"):
 		if node is Warehouse:
 			return node
-	return _find_first_child_of_type(parent, "Warehouse") as Warehouse
+	var scan_parent := get_parent()
+	return _find_first_child_of_type(scan_parent, "Warehouse") as Warehouse
 
 
 func _resolve_player_inventory() -> InventoryContainer:
@@ -530,16 +610,19 @@ func _make_target_transform(placement_position: Vector3) -> Transform3D:
 
 
 func _configure_buildable(buildable: Node3D) -> void:
+	buildable.add_to_group("destroyable_building")
 	var building_site := _find_first_child_of_type(buildable, "BuildingSite") as BuildingSite
 	if building_site != null:
-		if _current_building_id == &"warehouse":
-			building_site.consume_policy = BuildingResourceConsumer.ConsumePolicy.PLAYER_ONLY
-		elif _current_building_id == &"civil_house":
-			building_site.consume_policy = BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_THEN_PLAYER
-			building_site.warehouse_path = _get_warehouse_path_for(building_site)
+		building_site.add_to_group("building_site")
+		building_site.is_completed = false
+		building_site.build_progress = 0.0
+		building_site.consume_policy = BuildingResourceConsumer.ConsumePolicy.WAREHOUSE_THEN_PLAYER
+		building_site.warehouse_path = _get_warehouse_path_for(building_site)
 
 	if _current_building_id == &"civil_house":
 		_configure_buildable_house(buildable)
+	elif _current_building_id == &"warehouse":
+		_configure_buildable_warehouse(buildable)
 
 
 func _configure_buildable_house(buildable_house: Node3D) -> void:
@@ -558,6 +641,15 @@ func _configure_buildable_house(buildable_house: Node3D) -> void:
 			var created_callable := Callable(parent, "_on_house_npc_created")
 			if not npc_house.npc_created.is_connected(created_callable):
 				npc_house.npc_created.connect(created_callable)
+
+
+func _configure_buildable_warehouse(buildable_warehouse: Node3D) -> void:
+	var warehouse := _find_first_child_of_type(buildable_warehouse, "Warehouse") as Warehouse
+	if warehouse != null:
+		warehouse.add_to_group("warehouse")
+	var interactable := _find_first_warehouse_interactable(buildable_warehouse)
+	if interactable != null:
+		interactable.add_to_group("warehouse_interactable")
 
 
 func _get_warehouse_path_for(from_node: Node) -> NodePath:
@@ -597,6 +689,25 @@ func _find_first_child_of_type(root: Node, class_name_to_find: String) -> Node:
 	return null
 
 
+func _find_first_warehouse_interactable(root: Node) -> Node3D:
+	if root == null:
+		return null
+	if root is Node3D and root.has_method("interact") and _has_property(root, "warehouse_path"):
+		return root as Node3D
+	for child in root.get_children():
+		var nested := _find_first_warehouse_interactable(child)
+		if nested != null:
+			return nested
+	return null
+
+
+func _has_property(node: Object, property_name: String) -> bool:
+	for property in node.get_property_list():
+		if String(property.get("name", "")) == property_name:
+			return true
+	return false
+
+
 func _node_matches_type(node: Node, class_name_to_find: String) -> bool:
 	if class_name_to_find == "BuildingSite" and node is BuildingSite:
 		return true
@@ -612,11 +723,16 @@ func _node_matches_type(node: Node, class_name_to_find: String) -> bool:
 
 
 func _make_relative_path(from_node: Node, target_path: NodePath) -> NodePath:
-	var parent := get_parent()
-	if parent == null or String(target_path).is_empty():
+	if String(target_path).is_empty():
 		return target_path
 
-	var target := parent.get_node_or_null(target_path)
+	# Try resolving relative to self first (paths exported from this node).
+	var target := get_node_or_null(target_path)
+	if target == null:
+		# Fallback: resolve from parent for legacy path authoring.
+		var parent := get_parent()
+		if parent != null:
+			target = parent.get_node_or_null(target_path)
 	if target == null:
 		return NodePath("")
 
@@ -644,6 +760,8 @@ func _report_validation_state() -> void:
 	else:
 		print("[BuildMode] preview inválido: %s" % _current_invalid_reason)
 		print("[BUILD] Local invalido: %s." % _current_invalid_reason)
+		if placement_debug_enabled and not _current_invalid_debug.is_empty():
+			print("[BuildMode] diagnostico: %s" % _current_invalid_debug)
 
 
 func _is_valid_population_manager(node: Variant) -> bool:
@@ -668,10 +786,14 @@ func _clear_preview() -> void:
 	_is_placing = false
 	_current_is_valid = false
 	_current_invalid_reason = ""
+	_current_invalid_debug = ""
 	_current_building_id = &""
 	_current_display_name = ""
 	_current_scene = null
 	_current_footprint_size = Vector3.ZERO
+	_current_required_resources.clear()
+	_current_initial_completed_state = false
+	_placement_validation_elapsed = 0.0
 	if _preview != null:
 		_preview.queue_free()
 		_preview = null

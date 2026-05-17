@@ -4,6 +4,12 @@ extends RefCounted
 static var _seen_idempotency_keys: Dictionary = {}
 static var _sequence_number: int = 0
 static var _previous_integrity_hash: String = ""
+static var verbose_logging_enabled: bool = false
+static var print_error_events: bool = true
+
+
+static func set_verbose_logging_enabled(enabled: bool) -> void:
+	verbose_logging_enabled = enabled
 
 ## Limite de profundidade de recursão para canonicalize().
 ## Payloads mais profundos que este valor retornam o marcador "[MAX_DEPTH]".
@@ -154,7 +160,8 @@ static func emit_event(
 			"schema_validation_failed:%s" % ",".join(schema_errors)
 		)
 
-	print(JSON.stringify(event))
+	if verbose_logging_enabled or (print_error_events and String(event.get("severity_text", "")) == "ERROR"):
+		print(JSON.stringify(event))
 	return event
 
 

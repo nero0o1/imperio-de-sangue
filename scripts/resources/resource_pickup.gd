@@ -8,6 +8,45 @@ const DomainEventLoggerScript = preload("res://scripts/debug/domain_event_logger
 @export var amount: int = 1
 @export var amount_per_interaction: int = 1
 @export var remove_when_depleted: bool = true
+@export var debug_enabled: bool = false
+
+var reserved_by: Node = null
+
+
+func _ready() -> void:
+	add_to_group("resource_pickup")
+
+
+func can_be_reserved_by(actor: Node) -> bool:
+	if actor == null:
+		return false
+	if reserved_by == null:
+		return true
+	if not is_instance_valid(reserved_by):
+		reserved_by = null
+		return true
+	return reserved_by == actor
+
+
+func reserve_for(actor: Node) -> bool:
+	if not can_be_reserved_by(actor):
+		return false
+	reserved_by = actor
+	return true
+
+
+func release_reservation(actor: Node) -> void:
+	if reserved_by == actor or not is_instance_valid(reserved_by):
+		reserved_by = null
+
+
+func is_reserved_by_other(actor: Node) -> bool:
+	if reserved_by == null:
+		return false
+	if not is_instance_valid(reserved_by):
+		reserved_by = null
+		return false
+	return reserved_by != actor
 
 
 func interact(actor: Node) -> void:
@@ -29,7 +68,7 @@ func interact(actor: Node) -> void:
 		return
 
 	if amount <= 0:
-		print("[ResourcePickup] %s esgotado. Removendo pickup." % resource_id)
+		_debug_log("[ResourcePickup] %s esgotado. Removendo pickup." % resource_id)
 		_emit_pickup_event(
 			"resource_pickup.collect.blocked_depleted",
 			operation_id,
@@ -78,7 +117,7 @@ func interact(actor: Node) -> void:
 	var accepted: int = requested - leftover
 
 	if accepted <= 0:
-		print("[ResourcePickup] Inventario nao aceitou %s. Restante no mapa: %d." % [resource_id, amount])
+		_debug_log("[ResourcePickup] Inventario nao aceitou %s. Restante no mapa: %d." % [resource_id, amount])
 		_emit_pickup_event(
 			"resource_pickup.collect.blocked_inventory_full",
 			operation_id,
@@ -93,7 +132,7 @@ func interact(actor: Node) -> void:
 
 	amount = max(0, amount - accepted)
 	quantity = amount
-	print("[ResourcePickup] Coletado %s x%d. Restante: %d." % [resource_id, accepted, amount])
+	_debug_log("[ResourcePickup] Coletado %s x%d. Restante: %d." % [resource_id, accepted, amount])
 	_emit_pickup_event(
 		"resource_pickup.collect.success",
 		operation_id,
@@ -106,10 +145,16 @@ func interact(actor: Node) -> void:
 	)
 
 	if amount <= 0:
-		print("[ResourcePickup] %s esgotado. Removendo pickup." % resource_id)
+		_debug_log("[ResourcePickup] %s esgotado. Removendo pickup." % resource_id)
 		_deplete_pickup()
 
+
+func _debug_log(message: String) -> void:
+	if debug_enabled:
+		print(message)
+
 func _deplete_pickup() -> void:
+	reserved_by = null
 	if remove_when_depleted:
 		queue_free()
 

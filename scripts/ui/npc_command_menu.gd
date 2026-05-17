@@ -30,12 +30,6 @@ var _debug_status_label: Label = null
 var _debug_inv_label: Label = null
 
 # Temporários para buscas recursivas (evita passar por referência em GDScript)
-var _nearest_building_site: BuildingSite = null
-var _nearest_dist_tmp: float = INF
-var _nearest_pickup: Node3D = null
-var _nearest_pickup_dist: float = INF
-var _nearest_warehouse_interactable: Node3D = null
-var _nearest_wi_dist: float = INF
 var _nearest_garrison: Node3D = null
 var _nearest_garrison_dist: float = INF
 var _nearest_repair_target: Node3D = null
@@ -558,41 +552,13 @@ func _on_close_pressed() -> void:
 func _find_nearest_building_site() -> BuildingSite:
 	if not _has_valid_current_npc():
 		return null
-	_nearest_building_site = null
-	_nearest_dist_tmp = INF
-	_search_building_sites(get_tree().current_scene, current_npc.global_position)
-	return _nearest_building_site
-
-
-func _search_building_sites(node: Node, from: Vector3) -> void:
-	if node is BuildingSite:
-		var bs := node as BuildingSite
-		if not bs.is_completed:
-			var d := bs.global_position.distance_to(from)
-			if d < _nearest_dist_tmp:
-				_nearest_building_site = bs
-				_nearest_dist_tmp = d
-	for child in node.get_children():
-		_search_building_sites(child, from)
+	return _find_nearest_group_node(&"building_site", Callable(self, "_is_incomplete_building_site")) as BuildingSite
 
 
 func _find_nearest_resource_pickup() -> Node3D:
 	if not _has_valid_current_npc():
 		return null
-	_nearest_pickup = null
-	_nearest_pickup_dist = INF
-	_search_pickups(get_tree().current_scene, current_npc.global_position)
-	return _nearest_pickup
-
-
-func _search_pickups(node: Node, from: Vector3) -> void:
-	if node is Node3D and _is_resource_pickup(node as Node3D):
-		var d := (node as Node3D).global_position.distance_to(from)
-		if d < _nearest_pickup_dist:
-			_nearest_pickup = node as Node3D
-			_nearest_pickup_dist = d
-	for child in node.get_children():
-		_search_pickups(child, from)
+	return _find_nearest_group_node(&"resource_pickup", Callable(self, "_is_resource_pickup"))
 
 
 func _is_resource_pickup(node: Node3D) -> bool:
@@ -602,24 +568,49 @@ func _is_resource_pickup(node: Node3D) -> bool:
 func _find_nearest_warehouse_interactable() -> Node3D:
 	if not _has_valid_current_npc():
 		return null
-	_nearest_warehouse_interactable = null
-	_nearest_wi_dist = INF
-	_search_warehouse_interactables(get_tree().current_scene, current_npc.global_position)
-	return _nearest_warehouse_interactable
+	var default_warehouse := _find_nearest_group_node(&"warehouse_interactable", Callable(self, "_is_default_warehouse_interactable"))
+	if default_warehouse != null:
+		return default_warehouse
+	return _find_nearest_group_node(&"warehouse_interactable", Callable(self, "_is_warehouse_interactable"))
 
 
-func _search_warehouse_interactables(node: Node, from: Vector3) -> void:
-	if node is Node3D and _is_warehouse_interactable(node as Node3D):
-		var d := (node as Node3D).global_position.distance_to(from)
-		if d < _nearest_wi_dist:
-			_nearest_warehouse_interactable = node as Node3D
-			_nearest_wi_dist = d
-	for child in node.get_children():
-		_search_warehouse_interactables(child, from)
+func _find_nearest_group_node(group_name: StringName, predicate: Callable) -> Node3D:
+	var best: Node3D = null
+	var best_distance := INF
+	for node in get_tree().get_nodes_in_group(group_name):
+		if not (node is Node3D):
+			continue
+		if not predicate.call(node):
+			continue
+		var node3d := node as Node3D
+		var distance := node3d.global_position.distance_to(current_npc.global_position)
+		if distance < best_distance:
+			best = node3d
+			best_distance = distance
+	return best
 
 
 func _is_warehouse_interactable(node: Node3D) -> bool:
-	return _has_property(node, "warehouse_path") and node.has_method("interact")
+	if not is_instance_valid(node) or not node.visible:
+		return false
+	if not (_has_property(node, "warehouse_path") and node.has_method("interact")):
+		return false
+	if node.has_method("get_warehouse"):
+		return node.call("get_warehouse") is Warehouse
+	return true
+
+
+func _is_default_warehouse_interactable(node: Node3D) -> bool:
+	if not _is_warehouse_interactable(node):
+		return false
+	if not node.has_method("get_warehouse"):
+		return false
+	var warehouse := node.call("get_warehouse") as Warehouse
+	return warehouse != null and warehouse.warehouse_id == &"warehouse_default"
+
+
+func _is_incomplete_building_site(node: Node3D) -> bool:
+	return is_instance_valid(node) and node.visible and node is BuildingSite and not (node as BuildingSite).is_completed
 
 
 func _has_property(node: Object, property_name: String) -> bool:

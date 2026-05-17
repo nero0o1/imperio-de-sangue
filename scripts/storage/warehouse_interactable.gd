@@ -3,6 +3,11 @@ extends StaticBody3D
 const DomainEventLoggerScript = preload("res://scripts/debug/domain_event_logger.gd")
 
 @export var warehouse_path: NodePath
+@export var debug_enabled: bool = false
+
+
+func _ready() -> void:
+	add_to_group("warehouse_interactable")
 
 
 func interact(actor: Node) -> void:
@@ -29,7 +34,7 @@ func interact(actor: Node) -> void:
 	var before := _snapshot(inventory, warehouse)
 
 	if inventory == null:
-		print("[WarehouseInteractable] Actor sem inventario.")
+		_debug_log("[WarehouseInteractable] Actor sem inventario.")
 		_emit_deposit_event(
 			"warehouse.deposit.blocked_invalid_reference",
 			operation_id,
@@ -63,13 +68,13 @@ func interact(actor: Node) -> void:
 			to_deposit[String(resource_id)] = amount
 			deposited_any = true
 			deposited_total += amount
-			print("[WarehouseInteractable] Depositado %s x%d." % [String(resource_id), amount])
+			_debug_log("[WarehouseInteractable] Depositado %s x%d." % [String(resource_id), amount])
 
 	if deposited_any:
 		warehouse.batch_add_resources(to_deposit)
 
 	if not deposited_any:
-		print("[WarehouseInteractable] Ator nao possui recursos para depositar.")
+		_debug_log("[WarehouseInteractable] Ator nao possui recursos para depositar.")
 		_emit_deposit_event(
 			"warehouse.deposit.blocked_no_resources",
 			operation_id,
@@ -127,6 +132,11 @@ func get_stock_snapshot() -> Dictionary:
 		return {}
 
 	return warehouse.get_stock_snapshot()
+
+
+func _debug_log(message: String) -> void:
+	if debug_enabled:
+		print(message)
 
 
 func _find_actor_inventory(actor: Node) -> InventoryContainer:

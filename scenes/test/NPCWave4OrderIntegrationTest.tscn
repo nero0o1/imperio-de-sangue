@@ -84,32 +84,37 @@ surface_material_override/0 = SubResource("1_ground_mat")
 shape = SubResource("3_ground_shape")
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="." groups=["navigation_region"]]
+visible = false
 navigation_mesh = SubResource("12_navigation_mesh")
 
 [node name="MarkerNorth" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -32)
+visible = false
 mesh = SubResource("5_marker_mesh")
 surface_material_override/0 = SubResource("4_marker_mat")
 
 [node name="MarkerSouth" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 32)
+visible = false
 mesh = SubResource("5_marker_mesh")
 surface_material_override/0 = SubResource("4_marker_mat")
 
 [node name="MarkerWest" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 0.03, 0)
+visible = false
 mesh = SubResource("5_marker_mesh")
 surface_material_override/0 = SubResource("4_marker_mat")
 
 [node name="MarkerEast" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0.03, 0)
+visible = false
 mesh = SubResource("5_marker_mesh")
 surface_material_override/0 = SubResource("4_marker_mat")
 
 [node name="InstructionLabel" type="Label3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 15)
 billboard = 1
-text = "Wave 4.6 - Teste de Ordens Semanticas\nOlhe para um NPC e pressione E para selecionar e abrir o menu.\nCaixa azul escura = Armazem interagivel. Caixas marrons = Madeira. Cinzas = Pedra."
+text = "Wave 4.6 - Teste de Ordens Semanticas\nControles:  H = abrir construcao  |  R = rotacionar  |  Enter = confirmar  |  Esc = cancelar\nI = HUD/inventario  |  E = interagir/selecionar NPC\nCaixa azul escura = Armazem interagivel. Caixas marrons = Madeira. Cinzas = Pedra."
 font_size = 28
 outline_size = 8
 
@@ -122,7 +127,7 @@ script = ExtResource("12_player_inventory")
 [node name="Warehouse" type="Node" parent="." groups=["warehouse"]]
 script = ExtResource("10_warehouse")
 
-[node name="PopulationManager" type="Node" parent="."]
+[node name="PopulationManager" type="Node" parent="." groups=["population_manager"]]
 script = ExtResource("15_population_manager")
 base_capacity = 3
 capacity_per_house = 10
@@ -426,6 +431,8 @@ offset_right = 620.0
 offset_bottom = 180.0
 script = ExtResource("13_debug_hud")
 player_inventory_path = NodePath("../../Player/PlayerInventory")
+warehouse_path = NodePath("../../Warehouse")
+building_site_path = NodePath("../../CivilHouseA/BuildingSite")
 
 [node name="GameHUD" parent="HUDLayer" instance=ExtResource("14_game_hud")]
 player_inventory_path = NodePath("../../Player/PlayerInventory")

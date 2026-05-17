@@ -7,6 +7,7 @@ const NAV_STUCK_CHECK_INTERVAL := 2.0
 const NAV_STUCK_MIN_PROGRESS := 0.12
 const NAV_STUCK_MAX_RECOVERY_ATTEMPTS := 2
 const NAV_STUCK_OFFSET_DISTANCE := 1.5
+const NAV_TARGET_UPDATE_THRESHOLD := 0.15
 
 @export var npc_name: String = "Civil NPC"
 @export_enum("CIVIL", "SOLDIER", "HOSTILE") var role: int = NPCEnums.Role.CIVIL
@@ -17,7 +18,7 @@ const NAV_STUCK_OFFSET_DISTANCE := 1.5
 @export var follow_distance: float = 2.0
 @export var arrival_distance: float = 0.25
 @export var selected: bool = false
-@export var debug_enabled: bool = true
+@export var debug_enabled: bool = false
 @export var idle_wander_enabled: bool = true
 @export var idle_wander_radius: float = 1.5
 @export var idle_wander_interval_min: float = 2.5
@@ -350,13 +351,14 @@ func _begin_semantic_follow(target_node: Node3D) -> void:
 func _update_semantic_follow_target(target_node: Node3D) -> void:
 	if not is_instance_valid(target_node):
 		return
-	_target_position = target_node.global_position
-	_log_navigation_target_if_changed(_target_position)
+	_set_semantic_move_target(target_node.global_position)
 
 
 func _set_semantic_move_target(destination: Vector3) -> void:
 	if _recovering_from_stuck:
 		_recovery_return_target = destination
+		return
+	if _target_position.is_finite() and _target_position.distance_to(destination) <= NAV_TARGET_UPDATE_THRESHOLD:
 		return
 	_target_position = destination
 	_recovery_return_target = destination
@@ -459,10 +461,8 @@ func _process_following(delta: float) -> void:
 		return
 
 	var direction := global_position.direction_to(target_position)
-	_target_position = target_position - direction * follow_distance
-	if _use_navigation_agent:
-		_navigation_agent.target_position = _target_position
-		_log_navigation_target_if_changed(_target_position)
+	var follow_destination := target_position - direction * follow_distance
+	_set_semantic_move_target(follow_destination)
 
 	_move_toward_position(_get_next_movement_position(), delta)
 	_update_navigation_recovery(delta)
@@ -521,6 +521,81 @@ func consume_navigation_failure() -> bool:
 	return true
 
 
+func project_position_to_navigation(world_position: Vector3) -> Vector3:
+	if not world_position.is_finite():
+		return world_position
+	if not _use_navigation_agent:
+		return world_position
+	var world := get_world_3d()
+	if world == null:
+		return world_position
+	var navigation_map := world.get_navigation_map()
+	if not navigation_map.is_valid():
+		return world_position
+	var closest_point := NavigationServer3D.map_get_closest_point(navigation_map, world_position)
+	if not closest_point.is_finite():
+		return world_position
+	return closest_point
+
+
+func get_navigation_region_count() -> int:
+	var tree := get_tree()
+	if tree == null:
+		return 0
+	var grouped_count := tree.get_nodes_in_group("navigation_region").size()
+	if grouped_count > 0:
+		return grouped_count
+
+	var root := tree.current_scene
+	if root == null:
+		root = tree.root
+	return _count_navigation_regions(root)
+
+
+func get_navigation_debug_context(target_node: Node3D = null) -> String:
+	var parts: Array[String] = []
+	parts.append("destino_atual=%s" % str(_target_position))
+	parts.append("destino_anterior=%s" % str(_last_logged_navigation_target))
+	parts.append("npc_pos=%s" % str(global_position))
+	parts.append("nav_agent=%s" % str(_navigation_agent != null))
+	parts.append("nav_ativo=%s" % str(_use_navigation_agent))
+	parts.append("navigation_regions=%d" % get_navigation_region_count())
+	parts.append("tentativas_stuck=%d/%d" % [_stuck_repath_attempts, NAV_STUCK_MAX_RECOVERY_ATTEMPTS])
+	if _navigation_agent != null:
+		parts.append("nav_finished=%s" % str(_navigation_agent.is_navigation_finished()))
+		parts.append("next_path_pos=%s" % str(_navigation_agent.get_next_path_position()))
+	if _target_position.is_finite():
+		parts.append("dist_destino=%.2f" % global_position.distance_to(_target_position))
+	if is_instance_valid(target_node):
+		parts.append("target=%s" % String(target_node.name))
+		parts.append("target_pos=%s" % str(target_node.global_position))
+		parts.append("target_dist=%.2f" % global_position.distance_to(target_node.global_position))
+		parts.append("target_projected=%s" % str(project_position_to_navigation(target_node.global_position)))
+	return " ".join(parts)
+
+
+func get_navigation_failure_hint(target_node: Node3D = null) -> String:
+	if get_navigation_region_count() <= 0:
+		return "sem_navigation_region3d"
+	if not _use_navigation_agent or _navigation_agent == null:
+		return "navigation_agent_indisponivel"
+	if not _target_position.is_finite():
+		return "destino_invalido"
+
+	var projected_destination := project_position_to_navigation(_target_position)
+	if projected_destination.is_finite() and projected_destination.distance_to(_target_position) > 0.75:
+		return "destino_fora_da_navmesh"
+
+	if is_instance_valid(target_node):
+		var projected_target := project_position_to_navigation(target_node.global_position)
+		if projected_target.is_finite() and projected_target.distance_to(target_node.global_position) > 0.75:
+			return "alvo_fora_da_navmesh_ou_centro_inacessivel"
+
+	if _stuck_repath_attempts >= NAV_STUCK_MAX_RECOVERY_ATTEMPTS:
+		return "timeout_sem_progresso_possivel_obstaculo"
+	return "recuperacao_de_rota"
+
+
 func _reset_navigation_recovery() -> void:
 	_last_move_position = global_position
 	_stuck_elapsed = 0.0
@@ -561,7 +636,7 @@ func _update_navigation_recovery(delta: float) -> void:
 func _handle_navigation_stuck() -> void:
 	_log("[NPCNavigation] stuck detectado")
 	if _stuck_repath_attempts >= NAV_STUCK_MAX_RECOVERY_ATTEMPTS:
-		_log("[NPCNavigation] falha final apos tentativas de recuperacao: sem progresso suficiente ate %s apos %d tentativas." % [str(_target_position), _stuck_repath_attempts])
+		_log("[NPCNavigation] falha final apos tentativas de recuperacao: causa_provavel=%s %s" % [get_navigation_failure_hint(), get_navigation_debug_context()])
 		_navigation_failed = true
 		_semantic_motion_active = false
 		velocity = Vector3.ZERO
@@ -570,23 +645,13 @@ func _handle_navigation_stuck() -> void:
 		return
 
 	_stuck_repath_attempts += 1
-	_log("[NPCNavigation] recalculando rota")
+	_log("[NPCNavigation] recalculando rota: %s" % get_navigation_debug_context())
 	if _use_navigation_agent and _navigation_agent != null:
 		_navigation_agent.target_position = _target_position
 
-	var to_target := _target_position - global_position
-	to_target.y = 0.0
-	if to_target.length() <= 0.001:
-		to_target = -global_transform.basis.z
-	var lateral := _get_nearby_npc_avoidance_direction()
-	if lateral.length() <= 0.001:
-		lateral = Vector3(-to_target.z, 0.0, to_target.x).normalized()
-		if _stuck_repath_attempts % 2 == 0:
-			lateral = -lateral
-
 	_recovery_return_target = _target_position
-	var offset_target := global_position + lateral * NAV_STUCK_OFFSET_DISTANCE
-	_log("[NPCNavigation] tentando offset lateral")
+	var offset_target := _find_navigation_recovery_target()
+	_log("[NPCNavigation] tentando ponto alternativo navegavel: %s" % str(offset_target))
 	_recovering_from_stuck = false
 	_set_semantic_move_target(offset_target)
 	_recovering_from_stuck = true
@@ -617,6 +682,46 @@ func _get_nearby_npc_avoidance_direction() -> Vector3:
 	if away.length() <= 0.001:
 		return Vector3.ZERO
 	return away.normalized()
+
+
+func _find_navigation_recovery_target() -> Vector3:
+	var to_target := _target_position - global_position
+	to_target.y = 0.0
+	if to_target.length() <= 0.001:
+		to_target = -global_transform.basis.z
+		to_target.y = 0.0
+	if to_target.length() <= 0.001:
+		to_target = Vector3(0.0, 0.0, -1.0)
+	to_target = to_target.normalized()
+
+	var lateral := _get_nearby_npc_avoidance_direction()
+	if lateral.length() <= 0.001:
+		lateral = Vector3(-to_target.z, 0.0, to_target.x).normalized()
+	var direction_sign := 1.0 if _stuck_repath_attempts % 2 == 1 else -1.0
+	var offset := NAV_STUCK_OFFSET_DISTANCE
+	var candidates: Array[Vector3] = [
+		global_position + lateral * offset * direction_sign,
+		_target_position - to_target * offset,
+		_target_position + lateral * offset * direction_sign,
+		_target_position - lateral * offset * direction_sign,
+	]
+
+	var best := Vector3(INF, INF, INF)
+	var best_distance := INF
+	for candidate in candidates:
+		if not candidate.is_finite():
+			continue
+		var projected := project_position_to_navigation(candidate)
+		if not projected.is_finite() or projected.distance_to(global_position) <= 0.25:
+			continue
+		var distance_to_target := projected.distance_to(_target_position)
+		if distance_to_target < best_distance:
+			best = projected
+			best_distance = distance_to_target
+
+	if best.is_finite():
+		return best
+	return global_position + lateral * offset * direction_sign
 
 
 func _arrive_at_destination() -> void:
@@ -718,26 +823,18 @@ func _log_movement_fallback_once() -> void:
 
 
 func _tree_has_navigation_region() -> bool:
-	var root := get_tree().current_scene
-	if root == null:
-		root = get_tree().root
-
-	return _node_has_navigation_region(root)
+	return get_navigation_region_count() > 0
 
 
-func _node_has_navigation_region(node: Node) -> bool:
-	if node is NavigationRegion3D:
-		return true
-
+func _count_navigation_regions(node: Node) -> int:
+	var count := 1 if node is NavigationRegion3D else 0
 	for child in node.get_children():
-		if _node_has_navigation_region(child):
-			return true
-
-	return false
+		count += _count_navigation_regions(child)
+	return count
 
 
 func _log_order(message: String, order: NPCOrder = null) -> void:
-	if not debug_enabled:
+	if not debug_enabled and not _is_critical_order_log(message):
 		return
 	var suffix := ""
 	if order != null:
@@ -747,6 +844,10 @@ func _log_order(message: String, order: NPCOrder = null) -> void:
 			order.failure_reason,
 		]
 	print("[Order] %s %s%s" % [npc_name, message, suffix])
+
+
+func _is_critical_order_log(message: String) -> bool:
+	return message.find("FAILED") >= 0 or message.find("UNSUPPORTED") >= 0 or message.find("PARTIAL") >= 0
 
 
 func _log(message: String) -> void:
